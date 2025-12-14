@@ -493,42 +493,78 @@ function parseEstimateFile(text) {
     const totalMatch = totalLine ? totalLine.match(/\$([0-9,]+)/) : null;
     const estimatedCost = totalMatch ? parseFloat(totalMatch[1].replace(/,/g, '')) : null;
 
-    // Extract room/job details
-    const roomIndex = lines.findIndex(line => line.startsWith('Room:'));
-    if (roomIndex === -1) return null;
+    // Check if this is interior or exterior
+    const isInterior = lines.some(line => line === 'INTERIOR PAINTING');
+    const isExterior = lines.some(line => line === 'EXTERIOR PAINTING');
 
-    const roomLine = lines[roomIndex];
-    const sizeLine = lines[roomIndex + 1];
-    const tasksLine = lines[roomIndex + 2];
-    const conditionLine = lines[roomIndex + 3];
+    let jobType, details, tasks, condition, coats, jobName;
 
-    // Parse room type
-    const roomMatch = roomLine.match(/Room:\s+(.+)/);
-    const roomType = roomMatch ? roomMatch[1] : 'Painting Job';
+    if (isInterior) {
+      // Parse interior room format
+      const roomIndex = lines.findIndex(line => line.startsWith('Room:'));
+      if (roomIndex === -1) return null;
 
-    // Parse size (extract dimensions and area)
-    const sizeMatch = sizeLine.match(/Size:\s+([\d.]+)\s*×\s*([\d.]+)\s*metres\s*\(([\d.]+)m²\)/);
-    const dimensions = sizeMatch ? `${sizeMatch[1]}m × ${sizeMatch[2]}m (${sizeMatch[3]}m²)` : '';
+      const roomLine = lines[roomIndex];
+      const sizeLine = lines[roomIndex + 1];
+      const tasksLine = lines[roomIndex + 2];
+      const conditionLine = lines[roomIndex + 3];
 
-    // Parse tasks
-    const tasksMatch = tasksLine.match(/Tasks:\s+(.+)/);
-    const tasks = tasksMatch ? tasksMatch[1] : '';
+      const roomMatch = roomLine.match(/Room:\s+(.+)/);
+      jobType = roomMatch ? roomMatch[1] : 'Interior Painting';
 
-    // Parse condition
-    const conditionMatch = conditionLine.match(/Condition:\s+(.+)/);
-    const condition = conditionMatch ? conditionMatch[1] : 'good';
+      const sizeMatch = sizeLine.match(/Size:\s+([\d.]+)\s*×\s*([\d.]+)\s*metres\s*\(([\d.]+)m²\)/);
+      details = sizeMatch ? `${sizeMatch[1]}m × ${sizeMatch[2]}m (${sizeMatch[3]}m²)` : '';
+
+      const tasksMatch = tasksLine.match(/Tasks:\s+(.+)/);
+      tasks = tasksMatch ? tasksMatch[1] : '';
+
+      const conditionMatch = conditionLine.match(/Condition:\s+(.+)/);
+      condition = conditionMatch ? conditionMatch[1] : 'good';
+
+      jobName = `Estimate - ${jobType}`;
+    } else if (isExterior) {
+      // Parse exterior format
+      const areaIndex = lines.findIndex(line => line.startsWith('Area:'));
+      if (areaIndex === -1) return null;
+
+      const areaLine = lines[areaIndex];
+      const detailsLine = lines[areaIndex + 1];
+      const tasksLine = lines[areaIndex + 2];
+      const conditionLine = lines[areaIndex + 3];
+      const coatsLine = lines[areaIndex + 4];
+
+      const areaMatch = areaLine.match(/Area:\s+(.+)/);
+      jobType = areaMatch ? areaMatch[1] : 'Exterior Painting';
+
+      const detailsMatch = detailsLine.match(/Details:\s+(.+)/);
+      details = detailsMatch ? detailsMatch[1] : '';
+
+      const tasksMatch = tasksLine.match(/Tasks:\s+(.+)/);
+      tasks = tasksMatch ? tasksMatch[1] : '';
+
+      const conditionMatch = conditionLine.match(/Condition:\s+(.+)/);
+      condition = conditionMatch ? conditionMatch[1] : 'good';
+
+      const coatsMatch = coatsLine.match(/Coats:\s+(.+)/);
+      coats = coatsMatch ? coatsMatch[1] : '';
+
+      jobName = `Estimate - ${jobType}`;
+    } else {
+      // Can't determine format
+      return null;
+    }
 
     // Create comprehensive job description
-    const description = `Imported from estimate file
+    let description = `Imported from estimate file\n\n`;
+    description += `Type: ${jobType}\n`;
+    if (details) description += `Details: ${details}\n`;
+    if (tasks) description += `Tasks: ${tasks}\n`;
+    if (condition) description += `Condition: ${condition}\n`;
+    if (coats) description += `Coats: ${coats}`;
 
-Room Type: ${roomType}
-Size: ${dimensions}
-Tasks: ${tasks}
-Condition: ${condition}`;
-
-    // Return job data (no auto-calculated hours - leave blank for user to fill)
+    // Return job data
     return {
-      client_name: `Estimate - ${roomType}`,
+      client_name: jobName,
       client_phone: '',
       client_email: '',
       address: 'Address from estimate',
@@ -536,7 +572,7 @@ Condition: ${condition}`;
       status: 'pending',
       start_date: '',
       end_date: '',
-      estimated_hours: null,  // Don't auto-calculate - let user fill this in
+      estimated_hours: null,
       actual_hours: null,
       estimated_cost: estimatedCost,
       actual_cost: null
