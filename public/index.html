@@ -24,7 +24,7 @@
         <h2>Jobs</h2>
         <div style="display: flex; gap: 1rem;">
           <button class="btn btn-primary" onclick="showJobModal()">+ Add Job</button>
-          <button class="btn btn-secondary" onclick="document.getElementById('estimate-upload').click()">📄 Import Estimate</button>
+          <button class="btn btn-secondary" onclick="triggerEstimateUpload()">📄 Import Estimate</button>
           <input type="file" id="estimate-upload" accept=".txt" style="display: none;" onchange="handleEstimateUpload(event)">
         </div>
       </div>

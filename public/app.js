@@ -446,6 +446,12 @@ function formatDate(dateString) {
 }
 
 // ESTIMATE FILE UPLOAD & PARSING
+function triggerEstimateUpload() {
+  const input = document.getElementById('estimate-upload');
+  input.value = ''; // Clear previous selection to allow re-uploading same file
+  input.click();
+}
+
 async function handleEstimateUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -467,9 +473,8 @@ async function handleEstimateUpload(event) {
     });
 
     if (response.ok) {
-      alert(`Job created successfully for ${jobData.client_name}!`);
+      alert(`Job created successfully!\nClient: ${jobData.client_name}\nEstimate: $${jobData.estimated_cost}`);
       loadJobs();
-      event.target.value = ''; // Reset file input
     } else {
       alert('Error creating job from estimate.');
     }
@@ -497,13 +502,13 @@ function parseEstimateFile(text) {
     const tasksLine = lines[roomIndex + 2];
     const conditionLine = lines[roomIndex + 3];
 
-    // Parse room type (client name placeholder)
+    // Parse room type
     const roomMatch = roomLine.match(/Room:\s+(.+)/);
     const roomType = roomMatch ? roomMatch[1] : 'Painting Job';
 
-    // Parse size
-    const sizeMatch = sizeLine.match(/Size:\s+([\d.]+)\s*×\s*([\d.]+)\s*metres/);
-    const estimatedHours = sizeMatch ? (parseFloat(sizeMatch[1]) * parseFloat(sizeMatch[2]) * 2) : null;
+    // Parse size (extract dimensions and area)
+    const sizeMatch = sizeLine.match(/Size:\s+([\d.]+)\s*×\s*([\d.]+)\s*metres\s*\(([\d.]+)m²\)/);
+    const dimensions = sizeMatch ? `${sizeMatch[1]}m × ${sizeMatch[2]}m (${sizeMatch[3]}m²)` : '';
 
     // Parse tasks
     const tasksMatch = tasksLine.match(/Tasks:\s+(.+)/);
@@ -513,10 +518,15 @@ function parseEstimateFile(text) {
     const conditionMatch = conditionLine.match(/Condition:\s+(.+)/);
     const condition = conditionMatch ? conditionMatch[1] : 'good';
 
-    // Create job description
-    const description = `Imported from estimate file\n\nRoom: ${roomType}\nTasks: ${tasks}\nCondition: ${condition}`;
+    // Create comprehensive job description
+    const description = `Imported from estimate file
 
-    // Return job data
+Room Type: ${roomType}
+Size: ${dimensions}
+Tasks: ${tasks}
+Condition: ${condition}`;
+
+    // Return job data (no auto-calculated hours - leave blank for user to fill)
     return {
       client_name: `Estimate - ${roomType}`,
       client_phone: '',
@@ -526,7 +536,7 @@ function parseEstimateFile(text) {
       status: 'pending',
       start_date: '',
       end_date: '',
-      estimated_hours: estimatedHours,
+      estimated_hours: null,  // Don't auto-calculate - let user fill this in
       actual_hours: null,
       estimated_cost: estimatedCost,
       actual_cost: null
