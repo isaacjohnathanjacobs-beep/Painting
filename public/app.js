@@ -445,6 +445,98 @@ function formatDate(dateString) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+// ESTIMATE FILE UPLOAD & PARSING
+async function handleEstimateUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const jobData = parseEstimateFile(text);
+
+    if (!jobData) {
+      alert('Could not parse estimate file. Please check the file format.');
+      return;
+    }
+
+    // Create the job
+    const response = await fetch(`${API_URL}/jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(jobData)
+    });
+
+    if (response.ok) {
+      alert(`Job created successfully for ${jobData.client_name}!`);
+      loadJobs();
+      event.target.value = ''; // Reset file input
+    } else {
+      alert('Error creating job from estimate.');
+    }
+  } catch (error) {
+    console.error('Error processing estimate file:', error);
+    alert('Error reading estimate file.');
+  }
+}
+
+function parseEstimateFile(text) {
+  try {
+    const lines = text.split('\n').map(line => line.trim());
+
+    // Extract total estimate
+    const totalLine = lines.find(line => line.startsWith('Total Project Estimate:'));
+    const totalMatch = totalLine ? totalLine.match(/\$([0-9,]+)/) : null;
+    const estimatedCost = totalMatch ? parseFloat(totalMatch[1].replace(/,/g, '')) : null;
+
+    // Extract room/job details
+    const roomIndex = lines.findIndex(line => line.startsWith('Room:'));
+    if (roomIndex === -1) return null;
+
+    const roomLine = lines[roomIndex];
+    const sizeLine = lines[roomIndex + 1];
+    const tasksLine = lines[roomIndex + 2];
+    const conditionLine = lines[roomIndex + 3];
+
+    // Parse room type (client name placeholder)
+    const roomMatch = roomLine.match(/Room:\s+(.+)/);
+    const roomType = roomMatch ? roomMatch[1] : 'Painting Job';
+
+    // Parse size
+    const sizeMatch = sizeLine.match(/Size:\s+([\d.]+)\s*×\s*([\d.]+)\s*metres/);
+    const estimatedHours = sizeMatch ? (parseFloat(sizeMatch[1]) * parseFloat(sizeMatch[2]) * 2) : null;
+
+    // Parse tasks
+    const tasksMatch = tasksLine.match(/Tasks:\s+(.+)/);
+    const tasks = tasksMatch ? tasksMatch[1] : '';
+
+    // Parse condition
+    const conditionMatch = conditionLine.match(/Condition:\s+(.+)/);
+    const condition = conditionMatch ? conditionMatch[1] : 'good';
+
+    // Create job description
+    const description = `Imported from estimate file\n\nRoom: ${roomType}\nTasks: ${tasks}\nCondition: ${condition}`;
+
+    // Return job data
+    return {
+      client_name: `Estimate - ${roomType}`,
+      client_phone: '',
+      client_email: '',
+      address: 'Address from estimate',
+      description: description,
+      status: 'pending',
+      start_date: '',
+      end_date: '',
+      estimated_hours: estimatedHours,
+      actual_hours: null,
+      estimated_cost: estimatedCost,
+      actual_cost: null
+    };
+  } catch (error) {
+    console.error('Error parsing estimate:', error);
+    return null;
+  }
+}
+
 // Close modals when clicking outside
 window.onclick = function(event) {
   if (event.target.classList.contains('modal')) {

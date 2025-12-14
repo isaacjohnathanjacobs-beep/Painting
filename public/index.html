@@ -22,7 +22,11 @@
     <div id="jobs-tab" class="tab-content active">
       <div class="section-header">
         <h2>Jobs</h2>
-        <button class="btn btn-primary" onclick="showJobModal()">+ Add Job</button>
+        <div style="display: flex; gap: 1rem;">
+          <button class="btn btn-primary" onclick="showJobModal()">+ Add Job</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('estimate-upload').click()">📄 Import Estimate</button>
+          <input type="file" id="estimate-upload" accept=".txt" style="display: none;" onchange="handleEstimateUpload(event)">
+        </div>
       </div>
 
       <div class="filters">
