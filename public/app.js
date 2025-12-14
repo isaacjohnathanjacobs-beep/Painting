@@ -7,6 +7,7 @@ let currentFilter = 'all';
 let editingJobId = null;
 let editingEmployeeId = null;
 let currentJobForAssignment = null;
+let openChecklists = new Set(); // Track which checklists are open
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
@@ -110,7 +111,7 @@ function generateProfessionalTaskDisplay(jobId, checklist) {
         </div>
         <div style="text-align: right;">
           <div style="font-size: 1.5rem; font-weight: 800; color: var(--primary);">${Math.round(totalPercentage)}%</div>
-          <span class="checklist-toggle" style="font-size: 1.2rem;">▼</span>
+          <span class="checklist-toggle" style="font-size: 1.2rem;">${openChecklists.has(jobId) ? '▲' : '▼'}</span>
         </div>
       </div>
 
@@ -118,7 +119,7 @@ function generateProfessionalTaskDisplay(jobId, checklist) {
         <div class="progress-bar" style="width: ${totalPercentage}%;"></div>
       </div>
 
-      <div id="checklist-${jobId}" class="professional-task-content" style="display: none;">
+      <div id="checklist-${jobId}" class="professional-task-content" style="display: ${openChecklists.has(jobId) ? 'block' : 'none'};">
         ${Object.entries(phases).map(([phaseKey, phase]) => {
           if (phase.tasks.length === 0) return '';
 
@@ -741,6 +742,13 @@ function toggleChecklist(jobId) {
   const checklistDiv = document.getElementById(`checklist-${jobId}`);
   const isVisible = checklistDiv.style.display !== 'none';
   checklistDiv.style.display = isVisible ? 'none' : 'block';
+
+  // Track open/closed state
+  if (isVisible) {
+    openChecklists.delete(jobId);
+  } else {
+    openChecklists.add(jobId);
+  }
 
   // Update toggle arrow
   const toggle = checklistDiv.previousElementSibling.querySelector('.checklist-toggle');
