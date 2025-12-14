@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painting Company Manager</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎨 Painting Company Manager</h1>
+      <p>Manage your jobs and employees efficiently</p>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="jobs">Jobs</button>
+      <button class="tab-btn" data-tab="employees">Employees</button>
+    </div>
+
+    <!-- JOBS TAB -->
+    <div id="jobs-tab" class="tab-content active">
+      <div class="section-header">
+        <h2>Jobs</h2>
+        <button class="btn btn-primary" onclick="showJobModal()">+ Add Job</button>
+      </div>
+
+      <div class="filters">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="pending">Pending</button>
+        <button class="filter-btn" data-filter="in_progress">In Progress</button>
+        <button class="filter-btn" data-filter="completed">Completed</button>
+      </div>
+
+      <div id="jobs-list" class="list"></div>
+    </div>
+
+    <!-- EMPLOYEES TAB -->
+    <div id="employees-tab" class="tab-content">
+      <div class="section-header">
+        <h2>Employees</h2>
+        <button class="btn btn-primary" onclick="showEmployeeModal()">+ Add Employee</button>
+      </div>
+
+      <div id="employees-list" class="list"></div>
+    </div>
+  </div>
+
+  <!-- JOB MODAL -->
+  <div id="job-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="job-modal-title">Add Job</h2>
+        <span class="close" onclick="closeJobModal()">&times;</span>
+      </div>
+      <form id="job-form">
+        <input type="hidden" id="job-id">
+
+        <div class="form-section">
+          <h3>Client Information</h3>
+          <div class="form-group">
+            <label for="client-name">Client Name *</label>
+            <input type="text" id="client-name" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="client-phone">Phone</label>
+              <input type="tel" id="client-phone">
+            </div>
+            <div class="form-group">
+              <label for="client-email">Email</label>
+              <input type="email" id="client-email">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="address">Address *</label>
+            <input type="text" id="address" required>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>Job Details</h3>
+          <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" rows="3"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="status">Status</label>
+            <select id="status">
+              <option value="pending">Pending</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="start-date">Start Date</label>
+              <input type="date" id="start-date">
+            </div>
+            <div class="form-group">
+              <label for="end-date">End Date</label>
+              <input type="date" id="end-date">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="estimated-hours">Estimated Hours</label>
+              <input type="number" id="estimated-hours" step="0.5">
+            </div>
+            <div class="form-group">
+              <label for="actual-hours">Actual Hours</label>
+              <input type="number" id="actual-hours" step="0.5">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="estimated-cost">Estimated Cost ($)</label>
+              <input type="number" id="estimated-cost" step="0.01">
+            </div>
+            <div class="form-group">
+              <label for="actual-cost">Actual Cost ($)</label>
+              <input type="number" id="actual-cost" step="0.01">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeJobModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Job</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- EMPLOYEE MODAL -->
+  <div id="employee-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="employee-modal-title">Add Employee</h2>
+        <span class="close" onclick="closeEmployeeModal()">&times;</span>
+      </div>
+      <form id="employee-form">
+        <input type="hidden" id="employee-id">
+
+        <div class="form-group">
+          <label for="employee-name">Name *</label>
+          <input type="text" id="employee-name" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="employee-email">Email</label>
+            <input type="email" id="employee-email">
+          </div>
+          <div class="form-group">
+            <label for="employee-phone">Phone</label>
+            <input type="tel" id="employee-phone">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="employee-role">Role</label>
+            <input type="text" id="employee-role" placeholder="e.g., Painter, Supervisor">
+          </div>
+          <div class="form-group">
+            <label for="hourly-rate">Hourly Rate ($)</label>
+            <input type="number" id="hourly-rate" step="0.01">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="employee-status">Status</label>
+          <select id="employee-status">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeEmployeeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Employee</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ASSIGN EMPLOYEES MODAL -->
+  <div id="assign-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Assign Employees</h2>
+        <span class="close" onclick="closeAssignModal()">&times;</span>
+      </div>
+      <div id="assign-content"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

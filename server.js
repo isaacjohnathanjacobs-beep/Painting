@@ -1,0 +1,266 @@
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const { db, initializeDatabase } = require('./database');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public'));
+
+// Initialize database
+initializeDatabase();
+
+// EMPLOYEE ROUTES
+
+// Get all employees
+app.get('/api/employees', (req, res) => {
+  db.all('SELECT * FROM employees ORDER BY name', (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(rows);
+  });
+});
+
+// Get single employee
+app.get('/api/employees/:id', (req, res) => {
+  db.get('SELECT * FROM employees WHERE id = ?', [req.params.id], (err, row) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (!row) {
+      res.status(404).json({ error: 'Employee not found' });
+      return;
+    }
+    res.json(row);
+  });
+});
+
+// Create employee
+app.post('/api/employees', (req, res) => {
+  const { name, email, phone, role, hourly_rate } = req.body;
+
+  if (!name) {
+    res.status(400).json({ error: 'Name is required' });
+    return;
+  }
+
+  db.run(
+    'INSERT INTO employees (name, email, phone, role, hourly_rate) VALUES (?, ?, ?, ?, ?)',
+    [name, email, phone, role, hourly_rate],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json({ id: this.lastID, name, email, phone, role, hourly_rate });
+    }
+  );
+});
+
+// Update employee
+app.put('/api/employees/:id', (req, res) => {
+  const { name, email, phone, role, hourly_rate, status } = req.body;
+
+  db.run(
+    'UPDATE employees SET name = ?, email = ?, phone = ?, role = ?, hourly_rate = ?, status = ? WHERE id = ?',
+    [name, email, phone, role, hourly_rate, status, req.params.id],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      if (this.changes === 0) {
+        res.status(404).json({ error: 'Employee not found' });
+        return;
+      }
+      res.json({ message: 'Employee updated successfully' });
+    }
+  );
+});
+
+// Delete employee
+app.delete('/api/employees/:id', (req, res) => {
+  db.run('DELETE FROM employees WHERE id = ?', [req.params.id], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Employee not found' });
+      return;
+    }
+    res.json({ message: 'Employee deleted successfully' });
+  });
+});
+
+// JOB ROUTES
+
+// Get all jobs
+app.get('/api/jobs', (req, res) => {
+  db.all('SELECT * FROM jobs ORDER BY created_at DESC', (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(rows);
+  });
+});
+
+// Get single job with assigned employees
+app.get('/api/jobs/:id', (req, res) => {
+  db.get('SELECT * FROM jobs WHERE id = ?', [req.params.id], (err, job) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (!job) {
+      res.status(404).json({ error: 'Job not found' });
+      return;
+    }
+
+    // Get assigned employees
+    db.all(
+      `SELECT e.* FROM employees e
+       INNER JOIN job_assignments ja ON e.id = ja.employee_id
+       WHERE ja.job_id = ?`,
+      [req.params.id],
+      (err, employees) => {
+        if (err) {
+          res.status(500).json({ error: err.message });
+          return;
+        }
+        job.assigned_employees = employees;
+        res.json(job);
+      }
+    );
+  });
+});
+
+// Create job
+app.post('/api/jobs', (req, res) => {
+  const { client_name, client_phone, client_email, address, description,
+          estimated_hours, estimated_cost, start_date, end_date } = req.body;
+
+  if (!client_name || !address) {
+    res.status(400).json({ error: 'Client name and address are required' });
+    return;
+  }
+
+  db.run(
+    `INSERT INTO jobs (client_name, client_phone, client_email, address, description,
+                       estimated_hours, estimated_cost, start_date, end_date)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [client_name, client_phone, client_email, address, description,
+     estimated_hours, estimated_cost, start_date, end_date],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json({ id: this.lastID, client_name, address, status: 'pending' });
+    }
+  );
+});
+
+// Update job
+app.put('/api/jobs/:id', (req, res) => {
+  const { client_name, client_phone, client_email, address, description, status,
+          estimated_hours, actual_hours, estimated_cost, actual_cost, start_date, end_date } = req.body;
+
+  db.run(
+    `UPDATE jobs SET client_name = ?, client_phone = ?, client_email = ?, address = ?,
+                     description = ?, status = ?, estimated_hours = ?, actual_hours = ?,
+                     estimated_cost = ?, actual_cost = ?, start_date = ?, end_date = ?
+     WHERE id = ?`,
+    [client_name, client_phone, client_email, address, description, status,
+     estimated_hours, actual_hours, estimated_cost, actual_cost, start_date, end_date, req.params.id],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      if (this.changes === 0) {
+        res.status(404).json({ error: 'Job not found' });
+        return;
+      }
+      res.json({ message: 'Job updated successfully' });
+    }
+  );
+});
+
+// Delete job
+app.delete('/api/jobs/:id', (req, res) => {
+  db.run('DELETE FROM jobs WHERE id = ?', [req.params.id], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Job not found' });
+      return;
+    }
+    res.json({ message: 'Job deleted successfully' });
+  });
+});
+
+// JOB ASSIGNMENT ROUTES
+
+// Assign employee to job
+app.post('/api/jobs/:jobId/assign/:employeeId', (req, res) => {
+  db.run(
+    'INSERT INTO job_assignments (job_id, employee_id) VALUES (?, ?)',
+    [req.params.jobId, req.params.employeeId],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json({ message: 'Employee assigned successfully' });
+    }
+  );
+});
+
+// Unassign employee from job
+app.delete('/api/jobs/:jobId/assign/:employeeId', (req, res) => {
+  db.run(
+    'DELETE FROM job_assignments WHERE job_id = ? AND employee_id = ?',
+    [req.params.jobId, req.params.employeeId],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json({ message: 'Employee unassigned successfully' });
+    }
+  );
+});
+
+// Get employees assigned to a job
+app.get('/api/jobs/:jobId/employees', (req, res) => {
+  db.all(
+    `SELECT e.* FROM employees e
+     INNER JOIN job_assignments ja ON e.id = ja.employee_id
+     WHERE ja.job_id = ?`,
+    [req.params.jobId],
+    (err, rows) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json(rows);
+    }
+  );
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Open http://localhost:${PORT} in your browser`);
+});
