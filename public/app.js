@@ -1935,110 +1935,167 @@ function generateProfessionalTaskList() {
   const setupEndId = taskId - 1;
 
   // PHASE 2: GLOBAL PREP (ALL ROOMS - 30% of job)
+  // Tasks are done sequentially ACROSS all rooms (not room-by-room)
   const prepWeight = 30;
   const prepWeightPerRoom = rooms.length > 0 ? prepWeight / rooms.length : 0;
 
-  rooms.forEach((room, roomIndex) => {
-    const roomCalc = calcRoom(room);
-    if (roomCalc === 0) return;
+  // Filter out rooms with no tasks
+  const validRooms = rooms.filter(r => calcRoom(r) > 0).map((room, index) => ({
+    ...room,
+    roomName: `${room.type} ${index + 1}`,
+    roomIndex: index
+  }));
 
-    const roomName = `${room.type} ${roomIndex + 1}`;
-    const roomPrepStartId = taskId;
+  let lastProtectId = setupEndId;
+  let lastHardwareId = setupEndId;
+  let lastWallpaperRemovalIds = {};
+  let lastRepairId = setupEndId;
+  let lastSandingId = setupEndId;
+  let lastDustRemovalId = setupEndId;
+  let lastPrimeId = setupEndId;
 
-    // Room protection
+  // Step 1: Protect floors and fixtures in ALL rooms
+  validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'prep',
       task: `Protect floors and fixtures`,
       completed: false,
       percentage: prepWeightPerRoom * 0.1,
-      dependencies: [setupEndId],
-      room: roomName
+      dependencies: [lastProtectId],
+      room: room.roomName
     });
+    lastProtectId = taskId - 1;
+    lastHardwareId = taskId - 1; // Hardware depends on protection
+  });
 
+  // Step 2: Remove or mask hardware in ALL rooms
+  validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'prep',
       task: `Remove or mask hardware`,
       completed: false,
       percentage: prepWeightPerRoom * 0.05,
-      dependencies: [taskId - 1],
-      room: roomName
+      dependencies: [lastHardwareId],
+      room: room.roomName
     });
+    lastHardwareId = taskId - 1;
+  });
 
-    // Wallpaper removal if needed
-    if (room.selectedTasks['Remove wallpaper']) {
+  // Step 3: Wallpaper removal for rooms that need it
+  const roomsWithWallpaper = validRooms.filter(r => r.selectedTasks['Remove wallpaper']);
+  if (roomsWithWallpaper.length > 0) {
+    let lastWallpaperTaskId = lastHardwareId;
+
+    // Remove wallpaper from all rooms that have it
+    roomsWithWallpaper.forEach((room) => {
       tasks.push({
         id: taskId++,
         phase: 'prep',
         task: `Remove wallpaper`,
         completed: false,
         percentage: prepWeightPerRoom * 0.15,
-        dependencies: [taskId - 1],
-        room: roomName
+        dependencies: [lastWallpaperTaskId],
+        room: room.roomName
       });
+      lastWallpaperTaskId = taskId - 1;
+      lastWallpaperRemovalIds[room.roomIndex] = taskId - 1;
+    });
 
+    // Remove adhesive residue from all rooms
+    roomsWithWallpaper.forEach((room) => {
       tasks.push({
         id: taskId++,
         phase: 'prep',
         task: `Remove adhesive residue`,
         completed: false,
         percentage: prepWeightPerRoom * 0.1,
-        dependencies: [taskId - 1],
-        room: roomName
+        dependencies: [lastWallpaperTaskId],
+        room: room.roomName
       });
+      lastWallpaperTaskId = taskId - 1;
+      lastWallpaperRemovalIds[room.roomIndex] = taskId - 1;
+    });
 
+    // Allow walls to dry in all rooms
+    roomsWithWallpaper.forEach((room) => {
       tasks.push({
         id: taskId++,
         phase: 'prep',
         task: `Allow walls to dry (minimum 24 hours)`,
         completed: false,
         percentage: prepWeightPerRoom * 0.05,
-        dependencies: [taskId - 1],
-        room: roomName
+        dependencies: [lastWallpaperTaskId],
+        room: room.roomName
       });
-    }
+      lastWallpaperTaskId = taskId - 1;
+      lastWallpaperRemovalIds[room.roomIndex] = taskId - 1;
+    });
 
-    // Repair and prep
+    lastRepairId = lastWallpaperTaskId;
+  } else {
+    lastRepairId = lastHardwareId;
+  }
+
+  // Step 4: Inspect and repair surface defects in ALL rooms
+  validRooms.forEach((room) => {
+    const roomDep = lastWallpaperRemovalIds[room.roomIndex] || lastRepairId;
     tasks.push({
       id: taskId++,
       phase: 'prep',
       task: `Inspect and repair surface defects`,
       completed: false,
       percentage: prepWeightPerRoom * 0.15,
-      dependencies: room.selectedTasks['Remove wallpaper'] ? [taskId - 1] : [roomPrepStartId + 1],
-      room: roomName
+      dependencies: [roomDep],
+      room: room.roomName
     });
+    lastRepairId = taskId - 1;
+    lastSandingId = taskId - 1;
+  });
 
+  // Step 5: Initial sanding of ALL surfaces in ALL rooms
+  validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'prep',
       task: `Initial sanding of ALL surfaces (walls, ceiling, trim, doors, windows)`,
       completed: false,
       percentage: prepWeightPerRoom * 0.2,
-      dependencies: [taskId - 1],
-      room: roomName
+      dependencies: [lastSandingId],
+      room: room.roomName
     });
+    lastSandingId = taskId - 1;
+    lastDustRemovalId = taskId - 1;
+  });
 
+  // Step 6: Dust removal and surface cleaning in ALL rooms
+  validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'prep',
       task: `Dust removal and surface cleaning`,
       completed: false,
       percentage: prepWeightPerRoom * 0.1,
-      dependencies: [taskId - 1],
-      room: roomName
+      dependencies: [lastDustRemovalId],
+      room: room.roomName
     });
+    lastDustRemovalId = taskId - 1;
+    lastPrimeId = taskId - 1;
+  });
 
+  // Step 7: Spot-prime or seal in ALL rooms
+  validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'prep',
       task: `Spot-prime or seal where required`,
       completed: false,
       percentage: prepWeightPerRoom * 0.1,
-      dependencies: [taskId - 1],
-      room: roomName
+      dependencies: [lastPrimeId],
+      room: room.roomName
     });
+    lastPrimeId = taskId - 1;
   });
 
   const prepEndId = taskId - 1;
