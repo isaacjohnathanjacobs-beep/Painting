@@ -2114,9 +2114,9 @@ function generateProfessionalTaskList() {
   const paintStartId = taskId;
 
   // PHASE 3: PAINTING (55% of job)
-  // Paint order: Skirting → Windows → Ceilings → Walls → Doors
+  // Paint order: Skirting → Windows → Ceilings → Walls → Doors → Cabinets
+  // Tasks are done sequentially ACROSS all rooms
   const paintWeight = 55;
-  let paintWeightRemaining = paintWeight;
 
   // Calculate surface distribution
   const surfaceCount = {
@@ -2128,7 +2128,7 @@ function generateProfessionalTaskList() {
     cabinets: 0
   };
 
-  rooms.forEach(room => {
+  validRooms.forEach(room => {
     if (room.selectedTasks['Paint skirting/coving']) surfaceCount.skirting++;
     if (room.selectedTasks['Paint windows']) surfaceCount.windows++;
     if (room.selectedTasks['Paint ceiling']) surfaceCount.ceilings++;
@@ -2140,96 +2140,85 @@ function generateProfessionalTaskList() {
   const totalSurfaces = Object.values(surfaceCount).reduce((a, b) => a + b, 0);
   const weightPerSurface = totalSurfaces > 0 ? paintWeight / totalSurfaces : 0;
 
-  // Helper function to add painting tasks for a surface
-  const addPaintingSurfaceTasks = (roomName, surfaceName, color, lastDep) => {
-    const surfaceStartId = taskId;
+  // Helper to paint a surface across all rooms sequentially
+  const paintSurfaceAcrossRooms = (surfaceType, surfaceName, getColor) => {
+    const roomsWithSurface = validRooms.filter(room => room.selectedTasks[surfaceType]);
+    if (roomsWithSurface.length === 0) return;
 
-    tasks.push({
-      id: taskId++,
-      phase: 'painting',
-      task: `${surfaceName} - Coat 1${color ? ' (' + color + ')' : ''}`,
-      completed: false,
-      percentage: weightPerSurface * 0.35,
-      dependencies: [lastDep],
-      room: roomName
+    let lastTaskId = taskId - 1;
+
+    // Coat 1 for all rooms
+    roomsWithSurface.forEach((room) => {
+      const color = getColor(room);
+      tasks.push({
+        id: taskId++,
+        phase: 'painting',
+        task: `${surfaceName} - Coat 1${color ? ' (' + color + ')' : ''}`,
+        completed: false,
+        percentage: weightPerSurface * 0.4,
+        dependencies: [lastTaskId],
+        room: room.roomName
+      });
+      lastTaskId = taskId - 1;
     });
 
-    tasks.push({
-      id: taskId++,
-      phase: 'painting',
-      task: `${surfaceName} - Drying time`,
-      completed: false,
-      percentage: weightPerSurface * 0.05,
-      dependencies: [taskId - 1],
-      room: roomName
+    // Light sanding for all rooms
+    roomsWithSurface.forEach((room) => {
+      tasks.push({
+        id: taskId++,
+        phase: 'painting',
+        task: `${surfaceName} - Light sanding between coats`,
+        completed: false,
+        percentage: weightPerSurface * 0.1,
+        dependencies: [lastTaskId],
+        room: room.roomName
+      });
+      lastTaskId = taskId - 1;
     });
 
-    tasks.push({
-      id: taskId++,
-      phase: 'painting',
-      task: `${surfaceName} - Light sanding between coats`,
-      completed: false,
-      percentage: weightPerSurface * 0.1,
-      dependencies: [taskId - 1],
-      room: roomName
+    // Dust removal for all rooms
+    roomsWithSurface.forEach((room) => {
+      tasks.push({
+        id: taskId++,
+        phase: 'painting',
+        task: `${surfaceName} - Dust removal`,
+        completed: false,
+        percentage: weightPerSurface * 0.1,
+        dependencies: [lastTaskId],
+        room: room.roomName
+      });
+      lastTaskId = taskId - 1;
     });
 
-    tasks.push({
-      id: taskId++,
-      phase: 'painting',
-      task: `${surfaceName} - Dust removal`,
-      completed: false,
-      percentage: weightPerSurface * 0.05,
-      dependencies: [taskId - 1],
-      room: roomName
+    // Coat 2 (final) for all rooms
+    roomsWithSurface.forEach((room) => {
+      const color = getColor(room);
+      tasks.push({
+        id: taskId++,
+        phase: 'painting',
+        task: `${surfaceName} - Coat 2 (final)${color ? ' (' + color + ')' : ''}`,
+        completed: false,
+        percentage: weightPerSurface * 0.4,
+        dependencies: [lastTaskId],
+        room: room.roomName
+      });
+      lastTaskId = taskId - 1;
     });
-
-    tasks.push({
-      id: taskId++,
-      phase: 'painting',
-      task: `${surfaceName} - Coat 2 (final)${color ? ' (' + color + ')' : ''}`,
-      completed: false,
-      percentage: weightPerSurface * 0.35,
-      dependencies: [taskId - 1],
-      room: roomName
-    });
-
-    tasks.push({
-      id: taskId++,
-      phase: 'painting',
-      task: `${surfaceName} - Final drying and inspection`,
-      completed: false,
-      percentage: weightPerSurface * 0.1,
-      dependencies: [taskId - 1],
-      room: roomName
-    });
-
-    return taskId - 1;
   };
 
-  let lastPaintDep = paintStartId - 1;
+  // 1. Paint skirting/coving across all rooms
+  paintSurfaceAcrossRooms(
+    'Paint skirting/coving',
+    'Skirting/Coving',
+    (room) => room.trimColor && room.trimColor !== 'Choose colour' ? room.trimColor : ''
+  );
 
-  // 1. Paint all skirting/coving first
-  if (surfaceCount.skirting > 0) {
-    rooms.forEach((room, roomIndex) => {
-      if (room.selectedTasks['Paint skirting/coving']) {
-        const roomName = `${room.type} ${roomIndex + 1}`;
-        const color = room.trimColor && room.trimColor !== 'Choose colour' ? room.trimColor : '';
-        lastPaintDep = addPaintingSurfaceTasks(roomName, 'Skirting/Coving', color, lastPaintDep);
-      }
-    });
-  }
-
-  // 2. Paint all windows
-  if (surfaceCount.windows > 0) {
-    rooms.forEach((room, roomIndex) => {
-      if (room.selectedTasks['Paint windows']) {
-        const roomName = `${room.type} ${roomIndex + 1}`;
-        const color = room.windowColor && room.windowColor !== 'Choose colour' ? room.windowColor : '';
-        lastPaintDep = addPaintingSurfaceTasks(roomName, 'Windows', color, lastPaintDep);
-      }
-    });
-  }
+  // 2. Paint windows across all rooms
+  paintSurfaceAcrossRooms(
+    'Paint windows',
+    'Windows',
+    (room) => room.windowColor && room.windowColor !== 'Choose colour' ? room.windowColor : ''
+  );
 
   // Protect finished trim before painting ceilings/walls
   if (surfaceCount.skirting > 0 || surfaceCount.windows > 0) {
@@ -2239,117 +2228,124 @@ function generateProfessionalTaskList() {
       task: 'Allow trim cure time and apply low-tack masking to protect finished surfaces',
       completed: false,
       percentage: 0.5,
-      dependencies: [lastPaintDep],
+      dependencies: [taskId - 1],
       room: 'All'
     });
-    lastPaintDep = taskId - 1;
   }
 
-  // 3. Paint all ceilings
-  if (surfaceCount.ceilings > 0) {
-    rooms.forEach((room, roomIndex) => {
-      if (room.selectedTasks['Paint ceiling']) {
-        const roomName = `${room.type} ${roomIndex + 1}`;
-        const color = room.ceilingColor && room.ceilingColor !== 'Choose colour' ? room.ceilingColor : '';
-        lastPaintDep = addPaintingSurfaceTasks(roomName, 'Ceiling', color, lastPaintDep);
-      }
-    });
-  }
+  // 3. Paint ceilings across all rooms
+  paintSurfaceAcrossRooms(
+    'Paint ceiling',
+    'Ceiling',
+    (room) => room.ceilingColor && room.ceilingColor !== 'Choose colour' ? room.ceilingColor : ''
+  );
 
-  // 4. Paint all walls
-  if (surfaceCount.walls > 0) {
-    rooms.forEach((room, roomIndex) => {
-      if (room.selectedTasks['Paint walls']) {
-        const roomName = `${room.type} ${roomIndex + 1}`;
-        const color = room.wallColor && room.wallColor !== 'Choose colour' ? room.wallColor : '';
-        lastPaintDep = addPaintingSurfaceTasks(roomName, 'Walls', color, lastPaintDep);
-      }
-    });
-  }
+  // 4. Paint walls across all rooms
+  paintSurfaceAcrossRooms(
+    'Paint walls',
+    'Walls',
+    (room) => room.wallColor && room.wallColor !== 'Choose colour' ? room.wallColor : ''
+  );
 
-  // 5. Paint all doors
-  if (surfaceCount.doors > 0) {
-    rooms.forEach((room, roomIndex) => {
-      if (room.selectedTasks['Paint doors']) {
-        const roomName = `${room.type} ${roomIndex + 1}`;
-        const color = room.doorColor && room.doorColor !== 'Choose colour' ? room.doorColor : '';
-        lastPaintDep = addPaintingSurfaceTasks(roomName, 'Doors', color, lastPaintDep);
-      }
-    });
-  }
+  // 5. Paint doors across all rooms
+  paintSurfaceAcrossRooms(
+    'Paint doors',
+    'Doors',
+    (room) => room.doorColor && room.doorColor !== 'Choose colour' ? room.doorColor : ''
+  );
 
-  // 6. Paint cabinets (if any)
-  if (surfaceCount.cabinets > 0) {
-    rooms.forEach((room, roomIndex) => {
-      if (room.selectedTasks['Paint cabinets']) {
-        const roomName = `${room.type} ${roomIndex + 1}`;
-        const color = room.cabinetColor && room.cabinetColor !== 'Choose colour' ? room.cabinetColor : '';
-        lastPaintDep = addPaintingSurfaceTasks(roomName, 'Cabinets', color, lastPaintDep);
-      }
-    });
-  }
+  // 6. Paint cabinets across all rooms
+  paintSurfaceAcrossRooms(
+    'Paint cabinets',
+    'Cabinets',
+    (room) => room.cabinetColor && room.cabinetColor !== 'Choose colour' ? room.cabinetColor : ''
+  );
 
   const paintEndId = taskId - 1;
 
   // PHASE 4: QA AND COMPLETION (10% of job)
+  // Tasks done sequentially across all rooms
   const qaWeight = 10;
-  const qaWeightPerRoom = rooms.length > 0 ? qaWeight / rooms.length : qaWeight;
+  const qaWeightPerRoom = validRooms.length > 0 ? qaWeight / validRooms.length : qaWeight;
 
-  rooms.forEach((room, roomIndex) => {
-    const roomCalc = calcRoom(room);
-    if (roomCalc === 0) return;
+  let lastRemoveMaskingId = paintEndId;
+  let lastInspectionId = paintEndId;
+  let lastTouchUpId = paintEndId;
+  let lastCleanId = paintEndId;
+  let lastSignOffId = paintEndId;
 
-    const roomName = `${room.type} ${roomIndex + 1}`;
-
+  // Step 1: Remove masking and protection from all rooms
+  validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'qa',
       task: `Remove masking and protection`,
       completed: false,
       percentage: qaWeightPerRoom * 0.2,
-      dependencies: [paintEndId],
-      room: roomName
+      dependencies: [lastRemoveMaskingId],
+      room: room.roomName
     });
+    lastRemoveMaskingId = taskId - 1;
+    lastInspectionId = taskId - 1;
+  });
 
+  // Step 2: Final defect inspection in all rooms
+  validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'qa',
       task: `Final defect inspection`,
       completed: false,
       percentage: qaWeightPerRoom * 0.3,
-      dependencies: [taskId - 1],
-      room: roomName
+      dependencies: [lastInspectionId],
+      room: room.roomName
     });
+    lastInspectionId = taskId - 1;
+    lastTouchUpId = taskId - 1;
+  });
 
+  // Step 3: Touch-ups if required in all rooms
+  validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'qa',
       task: `Touch-ups if required`,
       completed: false,
       percentage: qaWeightPerRoom * 0.3,
-      dependencies: [taskId - 1],
-      room: roomName
+      dependencies: [lastTouchUpId],
+      room: room.roomName
     });
+    lastTouchUpId = taskId - 1;
+    lastCleanId = taskId - 1;
+  });
 
+  // Step 4: Clean all rooms
+  validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'qa',
       task: `Clean room`,
       completed: false,
       percentage: qaWeightPerRoom * 0.1,
-      dependencies: [taskId - 1],
-      room: roomName
+      dependencies: [lastCleanId],
+      room: room.roomName
     });
+    lastCleanId = taskId - 1;
+    lastSignOffId = taskId - 1;
+  });
 
+  // Step 5: Room sign-off for all rooms
+  validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'qa',
       task: `Room sign-off`,
       completed: false,
       percentage: qaWeightPerRoom * 0.1,
-      dependencies: [taskId - 1],
-      room: roomName
+      dependencies: [lastSignOffId],
+      room: room.roomName
     });
+    lastSignOffId = taskId - 1;
   });
 
   // FINAL SIGN-OFF
@@ -2359,7 +2355,7 @@ function generateProfessionalTaskList() {
     task: '✓ Confirm all rooms approved',
     completed: false,
     percentage: 0,
-    dependencies: [taskId - 1],
+    dependencies: [lastSignOffId],
     room: 'All'
   });
 
