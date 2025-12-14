@@ -10,6 +10,9 @@
   "keywords": ["painting", "job-management", "employee-management"],
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "express": "^4.18.2",
     "sqlite3": "^5.1.6",
