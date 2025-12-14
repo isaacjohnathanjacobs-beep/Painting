@@ -100,7 +100,11 @@
               Indicative pricing only. Free on-site quote and colour consultation required for final price.
             </div>
 
-            <button class="btn btn-email" onclick="emailQuote()">📧 Request professional quote</button>
+            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 1.5rem;">
+              <button class="btn btn-primary" onclick="downloadEstimatePDF()">📄 Download PDF</button>
+              <button class="btn btn-success" onclick="createJobFromEstimate()">✅ Create Job from Estimate</button>
+              <button class="btn btn-email" onclick="emailQuote()">📧 Request Quote</button>
+            </div>
           </div>
         </div>
       </div>
@@ -263,6 +267,7 @@
     </div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

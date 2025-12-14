@@ -1600,5 +1600,278 @@ function emailQuote() {
   window.location.href = `mailto:quote@yourcompany.co.nz?subject=Painting Quote Request - $${t}&body=Please provide a detailed quote for the painting work estimated at $${t}.`;
 }
 
+// PDF Generation Function
+function downloadEstimatePDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  const totalPrice = document.getElementById('total-price').textContent;
+  const minPrice = document.getElementById('min-price').textContent;
+  const maxPrice = document.getElementById('max-price').textContent;
+  const interiorSubtotal = document.getElementById('interior-subtotal').textContent;
+  const exteriorSubtotal = document.getElementById('exterior-subtotal').textContent;
+
+  // Header
+  doc.setFontSize(22);
+  doc.setTextColor(34, 197, 94);
+  doc.text('Professional Painting Estimate', 105, 20, { align: 'center' });
+
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Premium Resene paints • Professional quality • 5-year guarantee', 105, 28, { align: 'center' });
+
+  const date = new Date().toLocaleDateString('en-NZ', { year: 'numeric', month: 'long', day: 'numeric' });
+  doc.text(`Generated: ${date}`, 105, 34, { align: 'center' });
+
+  let yPos = 45;
+
+  // Interior Summary
+  if (rooms.length > 0 && interiorSubtotal !== '0') {
+    doc.setFontSize(14);
+    doc.setTextColor(34, 197, 94);
+    doc.text('Interior Painting', 15, yPos);
+    yPos += 8;
+
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+
+    rooms.forEach((r, i) => {
+      const p = calcRoom(r);
+      if (p === 0) return;
+
+      const tasks = Object.keys(r.selectedTasks)
+        .filter(t => r.selectedTasks[t])
+        .map(t => {
+          let taskName = t.replace('Paint ', '').toLowerCase();
+          let color = '';
+
+          if (t === 'Paint walls' && r.wallColor && r.wallColor !== 'Choose colour') {
+            color = ` (${r.wallColor.replace('Resene ', '')})`;
+          } else if (t === 'Paint ceiling' && r.ceilingColor && r.ceilingColor !== 'Choose colour') {
+            color = ` (${r.ceilingColor.replace('Resene ', '')})`;
+          }
+
+          return taskName + color;
+        }).join(', ') || '—';
+
+      doc.text(`${r.type} - ${r.length}×${r.width}m`, 15, yPos);
+      doc.text(`$${p.toLocaleString()}`, 180, yPos);
+      yPos += 5;
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      doc.text(tasks, 20, yPos);
+      yPos += 8;
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+
+      if (yPos > 270) {
+        doc.addPage();
+        yPos = 20;
+      }
+    });
+
+    doc.setFontSize(11);
+    doc.setTextColor(34, 197, 94);
+    doc.text(`Interior Subtotal: $${interiorSubtotal}`, 180, yPos, { align: 'right' });
+    yPos += 10;
+  }
+
+  // Exterior Summary
+  if (exteriors.length > 0 && exteriorSubtotal !== '0') {
+    doc.setFontSize(14);
+    doc.setTextColor(34, 197, 94);
+    doc.text('Exterior Painting', 15, yPos);
+    yPos += 8;
+
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+
+    exteriors.forEach((e, i) => {
+      const p = calcExt(e);
+      if (p === 0) return;
+
+      const tasks = Object.keys(e.selectedTasks)
+        .filter(t => e.selectedTasks[t])
+        .map(t => t.replace('Paint ', '').toLowerCase())
+        .join(', ') || '—';
+
+      let sz;
+      if (e.type === 'House Walls') {
+        sz = `${e.area}m² ${e.cladding}`;
+      } else if (e.type === 'Deck') {
+        sz = `${e.deckArea}m²`;
+      } else {
+        sz = `${e.area}m²`;
+      }
+
+      doc.text(`${e.type} - ${sz}`, 15, yPos);
+      doc.text(`$${p.toLocaleString()}`, 180, yPos);
+      yPos += 5;
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      doc.text(tasks, 20, yPos);
+      yPos += 8;
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+
+      if (yPos > 270) {
+        doc.addPage();
+        yPos = 20;
+      }
+    });
+
+    doc.setFontSize(11);
+    doc.setTextColor(34, 197, 94);
+    doc.text(`Exterior Subtotal: $${exteriorSubtotal}`, 180, yPos, { align: 'right' });
+    yPos += 10;
+  }
+
+  // Total
+  if (yPos > 240) {
+    doc.addPage();
+    yPos = 20;
+  }
+
+  yPos += 5;
+  doc.setFillColor(34, 197, 94);
+  doc.rect(15, yPos, 180, 25, 'F');
+
+  doc.setFontSize(16);
+  doc.setTextColor(255, 255, 255);
+  doc.text('Total Project Estimate', 105, yPos + 10, { align: 'center' });
+  doc.setFontSize(20);
+  doc.text(`$${totalPrice}`, 105, yPos + 18, { align: 'center' });
+
+  yPos += 30;
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Estimate Range: $${minPrice} – $${maxPrice}`, 105, yPos, { align: 'center' });
+
+  yPos += 8;
+  doc.setFontSize(9);
+  doc.setTextColor(80, 80, 80);
+  doc.text('Includes GST • Full preparation • Premium Resene paints • 5-year guarantee', 105, yPos, { align: 'center' });
+
+  // Disclaimer
+  yPos += 10;
+  doc.setFillColor(254, 252, 232);
+  doc.rect(15, yPos, 180, 15, 'F');
+  doc.setTextColor(146, 64, 14);
+  doc.text('Indicative pricing only. Free on-site quote and colour consultation required for final price.', 105, yPos + 8, { align: 'center' });
+
+  // Save
+  doc.save(`painting-estimate-${totalPrice}.pdf`);
+}
+
+// Create Job from Estimate Function
+async function createJobFromEstimate() {
+  const totalPrice = document.getElementById('total-price').textContent;
+
+  if (!totalPrice || totalPrice === '0') {
+    alert('Please create an estimate first before creating a job.');
+    return;
+  }
+
+  // Build description from rooms and exteriors
+  let description = 'ESTIMATE DETAILS:\n\n';
+
+  if (rooms.length > 0) {
+    description += 'INTERIOR PAINTING:\n';
+    rooms.forEach((r, i) => {
+      const p = calcRoom(r);
+      if (p === 0) return;
+
+      const tasks = Object.keys(r.selectedTasks)
+        .filter(t => r.selectedTasks[t])
+        .map(t => {
+          let taskName = t;
+          let color = '';
+
+          if (t === 'Paint walls' && r.wallColor && r.wallColor !== 'Choose colour') {
+            color = ` (${r.wallColor})`;
+          } else if (t === 'Paint ceiling' && r.ceilingColor && r.ceilingColor !== 'Choose colour') {
+            color = ` (${r.ceilingColor})`;
+          } else if (t === 'Paint skirting/coving' && r.trimColor && r.trimColor !== 'Choose colour') {
+            color = ` (${r.trimColor})`;
+          } else if (t === 'Paint doors' && r.doorColor && r.doorColor !== 'Choose colour') {
+            color = ` (${r.doorColor})`;
+          } else if (t === 'Paint windows' && r.windowColor && r.windowColor !== 'Choose colour') {
+            color = ` (${r.windowColor})`;
+          } else if (t === 'Paint cabinets' && r.cabinetColor && r.cabinetColor !== 'Choose colour') {
+            color = ` (${r.cabinetColor})`;
+          }
+
+          return '  • ' + taskName + color;
+        }).join('\n');
+
+      description += `\n${r.type} (${r.length}×${r.width}m, ${r.ceilingHeight}m ceiling):\n${tasks}\n`;
+    });
+  }
+
+  if (exteriors.length > 0) {
+    description += '\n\nEXTERIOR PAINTING:\n';
+    exteriors.forEach((e, i) => {
+      const p = calcExt(e);
+      if (p === 0) return;
+
+      const tasks = Object.keys(e.selectedTasks)
+        .filter(t => e.selectedTasks[t])
+        .map(t => {
+          let taskName = t;
+          let color = '';
+
+          if (e.type === 'House Walls') {
+            if (t === 'Paint walls' && e.wallColor && e.wallColor !== 'Choose colour') {
+              color = ` (${e.wallColor})`;
+            } else if (t === 'Fascia/soffits' && e.fasciaColor && e.fasciaColor !== 'Choose colour') {
+              color = ` (${e.fasciaColor})`;
+            } else if (t === 'Gutters/downpipes' && e.gutterColor && e.gutterColor !== 'Choose colour') {
+              color = ` (${e.gutterColor})`;
+            }
+          }
+
+          return '  • ' + taskName + color;
+        }).join('\n');
+
+      let details;
+      if (e.type === 'House Walls') {
+        details = `${e.area}m² ${e.cladding}`;
+      } else if (e.type === 'Deck') {
+        details = `${e.deckArea}m²`;
+      } else {
+        details = `${e.area}m²`;
+      }
+
+      description += `\n${e.type} (${details}):\n${tasks}\n`;
+    });
+  }
+
+  description += `\n\nESTIMATED TOTAL: $${totalPrice}`;
+
+  // Open job modal and pre-fill with estimate data
+  editingJobId = null;
+  document.getElementById('job-modal-title').textContent = 'Create Job from Estimate';
+  document.getElementById('job-id').value = '';
+  document.getElementById('client-name').value = '';
+  document.getElementById('client-phone').value = '';
+  document.getElementById('client-email').value = '';
+  document.getElementById('address').value = '';
+  document.getElementById('description').value = description;
+  document.getElementById('status').value = 'pending';
+  document.getElementById('start-date').value = '';
+  document.getElementById('end-date').value = '';
+  document.getElementById('estimated-hours').value = '';
+  document.getElementById('actual-hours').value = '';
+  document.getElementById('estimated-cost').value = totalPrice.replace(/,/g, '');
+  document.getElementById('actual-cost').value = '';
+
+  document.getElementById('job-modal').classList.add('active');
+
+  // Switch to Jobs tab
+  switchTab('jobs');
+
+  alert('Estimate loaded! Please fill in client details and save the job.');
+}
+
 renderRooms();
 renderExteriors();
