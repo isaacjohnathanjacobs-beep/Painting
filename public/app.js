@@ -66,6 +66,111 @@ async function loadJobs() {
   }
 }
 
+function generateProfessionalTaskDisplay(jobId, checklist) {
+  // Calculate overall progress
+  const totalPercentage = checklist.reduce((sum, task) => {
+    return sum + (task.completed ? task.percentage : 0);
+  }, 0);
+
+  // Group tasks by phase
+  const phases = {
+    setup: { name: 'Setup & Preparation', tasks: [], color: '#3b82f6' },
+    prep: { name: 'Surface Preparation', tasks: [], color: '#f59e0b' },
+    painting: { name: 'Painting', tasks: [], color: '#22c55e' },
+    qa: { name: 'Quality Assurance', tasks: [], color: '#8b5cf6' },
+    completion: { name: 'Completion', tasks: [], color: '#06b6d4' }
+  };
+
+  checklist.forEach(task => {
+    if (phases[task.phase]) {
+      phases[task.phase].tasks.push(task);
+    }
+  });
+
+  // Check if task dependencies are met
+  const canCheckTask = (task) => {
+    if (task.completed) return true;
+    if (!task.dependencies || task.dependencies.length === 0) return true;
+
+    // All dependencies must be completed
+    return task.dependencies.every(depId => {
+      const depTask = checklist.find(t => t.id === depId);
+      return depTask && depTask.completed;
+    });
+  };
+
+  return `
+    <div class="professional-task-section">
+      <div class="professional-task-header" onclick="toggleChecklist(${jobId})">
+        <div>
+          <h4 style="margin: 0; font-size: 1.1rem;">Professional Task List</h4>
+          <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-muted);">
+            ${checklist.filter(t => t.completed).length}/${checklist.length} tasks complete
+          </p>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 1.5rem; font-weight: 800; color: var(--primary);">${Math.round(totalPercentage)}%</div>
+          <span class="checklist-toggle" style="font-size: 1.2rem;">▼</span>
+        </div>
+      </div>
+
+      <div class="progress-bar-container" style="margin-top: 1rem;">
+        <div class="progress-bar" style="width: ${totalPercentage}%;"></div>
+      </div>
+
+      <div id="checklist-${jobId}" class="professional-task-content" style="display: none;">
+        ${Object.entries(phases).map(([phaseKey, phase]) => {
+          if (phase.tasks.length === 0) return '';
+
+          const phaseCompleted = phase.tasks.filter(t => t.completed).length;
+          const phaseTotal = phase.tasks.length;
+          const phaseProgress = phase.tasks.reduce((sum, t) => sum + (t.completed ? t.percentage : 0), 0);
+
+          return `
+            <div class="task-phase">
+              <div class="phase-header" style="border-left-color: ${phase.color};">
+                <div>
+                  <h5 style="margin: 0; color: ${phase.color};">${phase.name}</h5>
+                  <small style="color: var(--text-muted);">${phaseCompleted}/${phaseTotal} tasks • ${Math.round(phaseProgress)}%</small>
+                </div>
+              </div>
+
+              <div class="phase-tasks">
+                ${phase.tasks.map(task => {
+                  const isEnabled = canCheckTask(task);
+                  const hasUnmetDeps = !isEnabled && !task.completed;
+
+                  return `
+                    <div class="professional-task-item ${task.completed ? 'completed' : ''} ${!isEnabled ? 'disabled' : ''}">
+                      <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+                        <input type="checkbox"
+                               id="task-${jobId}-${task.id}"
+                               ${task.completed ? 'checked' : ''}
+                               ${!isEnabled ? 'disabled' : ''}
+                               onchange="updateProfessionalTask(${jobId}, ${task.id}, this.checked)"
+                               style="margin-top: 0.25rem;">
+                        <div style="flex: 1;">
+                          <label for="task-${jobId}-${task.id}" style="cursor: ${isEnabled ? 'pointer' : 'not-allowed'}; display: block;">
+                            <div style="font-weight: 600;">${task.task}</div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
+                              ${task.room} ${task.percentage > 0 ? `• ${task.percentage.toFixed(1)}% of job` : ''}
+                              ${hasUnmetDeps ? '<span style="color: var(--warning);"> • Blocked: prerequisites not complete</span>' : ''}
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
 async function displayJobs(jobs) {
   const jobsList = document.getElementById('jobs-list');
 
@@ -114,25 +219,7 @@ async function displayJobs(jobs) {
             ${job.estimated_hours ? `<div class="info-item"><span class="info-label">Est. Hours:</span><span class="info-value">${job.estimated_hours}</span></div>` : ''}
             ${job.estimated_cost ? `<div class="info-item"><span class="info-label">Est. Cost:</span><span class="info-value">$${job.estimated_cost}</span></div>` : ''}
           </div>
-          ${checklist.length > 0 ? `
-            <div class="checklist-section">
-              <div class="checklist-header" onclick="toggleChecklist(${job.id})">
-                <h4>Task Checklist (${completedCount}/${totalCount})</h4>
-                <span class="checklist-toggle">▼</span>
-              </div>
-              <div id="checklist-${job.id}" class="checklist-items" style="display: none;">
-                ${checklist.map(item => `
-                  <div class="checklist-item">
-                    <input type="checkbox"
-                           id="task-${job.id}-${item.id}"
-                           ${item.completed ? 'checked' : ''}
-                           onchange="updateChecklistItem(${job.id}, ${item.id}, this.checked)">
-                    <label for="task-${job.id}-${item.id}"${item.completed ? ' class="completed-task"' : ''}>${item.task}</label>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          ` : ''}
+          ${checklist.length > 0 ? generateProfessionalTaskDisplay(job.id, checklist) : ''}
           ${employees.length > 0 ? `
             <div class="assigned-employees">
               <h4>Assigned Employees:</h4>
@@ -405,8 +492,12 @@ function setupForms() {
       estimated_hours: document.getElementById('estimated-hours').value || null,
       actual_hours: document.getElementById('actual-hours').value || null,
       estimated_cost: document.getElementById('estimated-cost').value || null,
-      actual_cost: document.getElementById('actual-cost').value || null
+      actual_cost: document.getElementById('actual-cost').value || null,
+      checklist: window.pendingTaskList || []
     };
+
+    // Clear pending task list after using it
+    window.pendingTaskList = null;
 
     try {
       if (editingJobId) {
@@ -691,6 +782,11 @@ async function updateChecklistItem(jobId, itemId, completed) {
     console.error('Error updating checklist:', error);
     alert('Error updating checklist item');
   }
+}
+
+// Update professional task (same as updateChecklistItem but for new UI)
+async function updateProfessionalTask(jobId, taskId, completed) {
+  await updateChecklistItem(jobId, taskId, completed);
 }
 
 // Close modals when clicking outside
@@ -1763,6 +1859,453 @@ function downloadEstimatePDF() {
   doc.save(`painting-estimate-${totalPrice}.pdf`);
 }
 
+// Generate Professional Task List from Estimate
+function generateProfessionalTaskList() {
+  const tasks = [];
+  let taskId = 1;
+
+  // Calculate total estimate for percentage weights
+  const totalEstimate = rooms.reduce((sum, r) => sum + calcRoom(r), 0) +
+                        exteriors.reduce((sum, e) => sum + calcExt(e), 0);
+
+  // Check if any room has wallpaper removal
+  const hasWallpaperRemoval = rooms.some(r => r.selectedTasks['Remove wallpaper']);
+
+  // PHASE 1: GLOBAL SETUP (5% of job)
+  const setupWeight = 5;
+  tasks.push({
+    id: taskId++,
+    phase: 'setup',
+    task: 'Confirm final price after on-site visit',
+    completed: false,
+    percentage: setupWeight * 0.3,
+    dependencies: [],
+    room: 'All'
+  });
+  tasks.push({
+    id: taskId++,
+    phase: 'setup',
+    task: 'Confirm colour schedule before opening paint',
+    completed: false,
+    percentage: setupWeight * 0.2,
+    dependencies: [1],
+    room: 'All'
+  });
+  tasks.push({
+    id: taskId++,
+    phase: 'setup',
+    task: 'Confirm scope interpretation (windows, trim details, etc.)',
+    completed: false,
+    percentage: setupWeight * 0.2,
+    dependencies: [1],
+    room: 'All'
+  });
+  tasks.push({
+    id: taskId++,
+    phase: 'setup',
+    task: 'Protect common areas and access paths',
+    completed: false,
+    percentage: setupWeight * 0.15,
+    dependencies: [1, 2, 3],
+    room: 'All'
+  });
+  tasks.push({
+    id: taskId++,
+    phase: 'setup',
+    task: 'Establish lighting for defect detection',
+    completed: false,
+    percentage: setupWeight * 0.15,
+    dependencies: [1, 2, 3],
+    room: 'All'
+  });
+
+  const setupEndId = taskId - 1;
+
+  // PHASE 2: GLOBAL PREP (ALL ROOMS - 30% of job)
+  const prepWeight = 30;
+  const prepWeightPerRoom = rooms.length > 0 ? prepWeight / rooms.length : 0;
+
+  rooms.forEach((room, roomIndex) => {
+    const roomCalc = calcRoom(room);
+    if (roomCalc === 0) return;
+
+    const roomName = `${room.type} ${roomIndex + 1}`;
+    const roomPrepStartId = taskId;
+
+    // Room protection
+    tasks.push({
+      id: taskId++,
+      phase: 'prep',
+      task: `Protect floors and fixtures`,
+      completed: false,
+      percentage: prepWeightPerRoom * 0.1,
+      dependencies: [setupEndId],
+      room: roomName
+    });
+
+    tasks.push({
+      id: taskId++,
+      phase: 'prep',
+      task: `Remove or mask hardware`,
+      completed: false,
+      percentage: prepWeightPerRoom * 0.05,
+      dependencies: [taskId - 1],
+      room: roomName
+    });
+
+    // Wallpaper removal if needed
+    if (room.selectedTasks['Remove wallpaper']) {
+      tasks.push({
+        id: taskId++,
+        phase: 'prep',
+        task: `Remove wallpaper`,
+        completed: false,
+        percentage: prepWeightPerRoom * 0.15,
+        dependencies: [taskId - 1],
+        room: roomName
+      });
+
+      tasks.push({
+        id: taskId++,
+        phase: 'prep',
+        task: `Remove adhesive residue`,
+        completed: false,
+        percentage: prepWeightPerRoom * 0.1,
+        dependencies: [taskId - 1],
+        room: roomName
+      });
+
+      tasks.push({
+        id: taskId++,
+        phase: 'prep',
+        task: `Allow walls to dry (minimum 24 hours)`,
+        completed: false,
+        percentage: prepWeightPerRoom * 0.05,
+        dependencies: [taskId - 1],
+        room: roomName
+      });
+    }
+
+    // Repair and prep
+    tasks.push({
+      id: taskId++,
+      phase: 'prep',
+      task: `Inspect and repair surface defects`,
+      completed: false,
+      percentage: prepWeightPerRoom * 0.15,
+      dependencies: room.selectedTasks['Remove wallpaper'] ? [taskId - 1] : [roomPrepStartId + 1],
+      room: roomName
+    });
+
+    tasks.push({
+      id: taskId++,
+      phase: 'prep',
+      task: `Initial sanding of ALL surfaces (walls, ceiling, trim, doors, windows)`,
+      completed: false,
+      percentage: prepWeightPerRoom * 0.2,
+      dependencies: [taskId - 1],
+      room: roomName
+    });
+
+    tasks.push({
+      id: taskId++,
+      phase: 'prep',
+      task: `Dust removal and surface cleaning`,
+      completed: false,
+      percentage: prepWeightPerRoom * 0.1,
+      dependencies: [taskId - 1],
+      room: roomName
+    });
+
+    tasks.push({
+      id: taskId++,
+      phase: 'prep',
+      task: `Spot-prime or seal where required`,
+      completed: false,
+      percentage: prepWeightPerRoom * 0.1,
+      dependencies: [taskId - 1],
+      room: roomName
+    });
+  });
+
+  const prepEndId = taskId - 1;
+
+  // CRITICAL HOLD POINT
+  tasks.push({
+    id: taskId++,
+    phase: 'prep',
+    task: '✓ HOLD POINT: All prep complete - Ready to begin painting',
+    completed: false,
+    percentage: 0,
+    dependencies: [prepEndId],
+    room: 'All'
+  });
+
+  const paintStartId = taskId;
+
+  // PHASE 3: PAINTING (55% of job)
+  // Paint order: Skirting → Windows → Ceilings → Walls → Doors
+  const paintWeight = 55;
+  let paintWeightRemaining = paintWeight;
+
+  // Calculate surface distribution
+  const surfaceCount = {
+    skirting: 0,
+    windows: 0,
+    ceilings: 0,
+    walls: 0,
+    doors: 0,
+    cabinets: 0
+  };
+
+  rooms.forEach(room => {
+    if (room.selectedTasks['Paint skirting/coving']) surfaceCount.skirting++;
+    if (room.selectedTasks['Paint windows']) surfaceCount.windows++;
+    if (room.selectedTasks['Paint ceiling']) surfaceCount.ceilings++;
+    if (room.selectedTasks['Paint walls']) surfaceCount.walls++;
+    if (room.selectedTasks['Paint doors']) surfaceCount.doors++;
+    if (room.selectedTasks['Paint cabinets']) surfaceCount.cabinets++;
+  });
+
+  const totalSurfaces = Object.values(surfaceCount).reduce((a, b) => a + b, 0);
+  const weightPerSurface = totalSurfaces > 0 ? paintWeight / totalSurfaces : 0;
+
+  // Helper function to add painting tasks for a surface
+  const addPaintingSurfaceTasks = (roomName, surfaceName, color, lastDep) => {
+    const surfaceStartId = taskId;
+
+    tasks.push({
+      id: taskId++,
+      phase: 'painting',
+      task: `${surfaceName} - Coat 1${color ? ' (' + color + ')' : ''}`,
+      completed: false,
+      percentage: weightPerSurface * 0.35,
+      dependencies: [lastDep],
+      room: roomName
+    });
+
+    tasks.push({
+      id: taskId++,
+      phase: 'painting',
+      task: `${surfaceName} - Drying time`,
+      completed: false,
+      percentage: weightPerSurface * 0.05,
+      dependencies: [taskId - 1],
+      room: roomName
+    });
+
+    tasks.push({
+      id: taskId++,
+      phase: 'painting',
+      task: `${surfaceName} - Light sanding between coats`,
+      completed: false,
+      percentage: weightPerSurface * 0.1,
+      dependencies: [taskId - 1],
+      room: roomName
+    });
+
+    tasks.push({
+      id: taskId++,
+      phase: 'painting',
+      task: `${surfaceName} - Dust removal`,
+      completed: false,
+      percentage: weightPerSurface * 0.05,
+      dependencies: [taskId - 1],
+      room: roomName
+    });
+
+    tasks.push({
+      id: taskId++,
+      phase: 'painting',
+      task: `${surfaceName} - Coat 2 (final)${color ? ' (' + color + ')' : ''}`,
+      completed: false,
+      percentage: weightPerSurface * 0.35,
+      dependencies: [taskId - 1],
+      room: roomName
+    });
+
+    tasks.push({
+      id: taskId++,
+      phase: 'painting',
+      task: `${surfaceName} - Final drying and inspection`,
+      completed: false,
+      percentage: weightPerSurface * 0.1,
+      dependencies: [taskId - 1],
+      room: roomName
+    });
+
+    return taskId - 1;
+  };
+
+  let lastPaintDep = paintStartId - 1;
+
+  // 1. Paint all skirting/coving first
+  if (surfaceCount.skirting > 0) {
+    rooms.forEach((room, roomIndex) => {
+      if (room.selectedTasks['Paint skirting/coving']) {
+        const roomName = `${room.type} ${roomIndex + 1}`;
+        const color = room.trimColor && room.trimColor !== 'Choose colour' ? room.trimColor : '';
+        lastPaintDep = addPaintingSurfaceTasks(roomName, 'Skirting/Coving', color, lastPaintDep);
+      }
+    });
+  }
+
+  // 2. Paint all windows
+  if (surfaceCount.windows > 0) {
+    rooms.forEach((room, roomIndex) => {
+      if (room.selectedTasks['Paint windows']) {
+        const roomName = `${room.type} ${roomIndex + 1}`;
+        const color = room.windowColor && room.windowColor !== 'Choose colour' ? room.windowColor : '';
+        lastPaintDep = addPaintingSurfaceTasks(roomName, 'Windows', color, lastPaintDep);
+      }
+    });
+  }
+
+  // Protect finished trim before painting ceilings/walls
+  if (surfaceCount.skirting > 0 || surfaceCount.windows > 0) {
+    tasks.push({
+      id: taskId++,
+      phase: 'painting',
+      task: 'Allow trim cure time and apply low-tack masking to protect finished surfaces',
+      completed: false,
+      percentage: 0.5,
+      dependencies: [lastPaintDep],
+      room: 'All'
+    });
+    lastPaintDep = taskId - 1;
+  }
+
+  // 3. Paint all ceilings
+  if (surfaceCount.ceilings > 0) {
+    rooms.forEach((room, roomIndex) => {
+      if (room.selectedTasks['Paint ceiling']) {
+        const roomName = `${room.type} ${roomIndex + 1}`;
+        const color = room.ceilingColor && room.ceilingColor !== 'Choose colour' ? room.ceilingColor : '';
+        lastPaintDep = addPaintingSurfaceTasks(roomName, 'Ceiling', color, lastPaintDep);
+      }
+    });
+  }
+
+  // 4. Paint all walls
+  if (surfaceCount.walls > 0) {
+    rooms.forEach((room, roomIndex) => {
+      if (room.selectedTasks['Paint walls']) {
+        const roomName = `${room.type} ${roomIndex + 1}`;
+        const color = room.wallColor && room.wallColor !== 'Choose colour' ? room.wallColor : '';
+        lastPaintDep = addPaintingSurfaceTasks(roomName, 'Walls', color, lastPaintDep);
+      }
+    });
+  }
+
+  // 5. Paint all doors
+  if (surfaceCount.doors > 0) {
+    rooms.forEach((room, roomIndex) => {
+      if (room.selectedTasks['Paint doors']) {
+        const roomName = `${room.type} ${roomIndex + 1}`;
+        const color = room.doorColor && room.doorColor !== 'Choose colour' ? room.doorColor : '';
+        lastPaintDep = addPaintingSurfaceTasks(roomName, 'Doors', color, lastPaintDep);
+      }
+    });
+  }
+
+  // 6. Paint cabinets (if any)
+  if (surfaceCount.cabinets > 0) {
+    rooms.forEach((room, roomIndex) => {
+      if (room.selectedTasks['Paint cabinets']) {
+        const roomName = `${room.type} ${roomIndex + 1}`;
+        const color = room.cabinetColor && room.cabinetColor !== 'Choose colour' ? room.cabinetColor : '';
+        lastPaintDep = addPaintingSurfaceTasks(roomName, 'Cabinets', color, lastPaintDep);
+      }
+    });
+  }
+
+  const paintEndId = taskId - 1;
+
+  // PHASE 4: QA AND COMPLETION (10% of job)
+  const qaWeight = 10;
+  const qaWeightPerRoom = rooms.length > 0 ? qaWeight / rooms.length : qaWeight;
+
+  rooms.forEach((room, roomIndex) => {
+    const roomCalc = calcRoom(room);
+    if (roomCalc === 0) return;
+
+    const roomName = `${room.type} ${roomIndex + 1}`;
+
+    tasks.push({
+      id: taskId++,
+      phase: 'qa',
+      task: `Remove masking and protection`,
+      completed: false,
+      percentage: qaWeightPerRoom * 0.2,
+      dependencies: [paintEndId],
+      room: roomName
+    });
+
+    tasks.push({
+      id: taskId++,
+      phase: 'qa',
+      task: `Final defect inspection`,
+      completed: false,
+      percentage: qaWeightPerRoom * 0.3,
+      dependencies: [taskId - 1],
+      room: roomName
+    });
+
+    tasks.push({
+      id: taskId++,
+      phase: 'qa',
+      task: `Touch-ups if required`,
+      completed: false,
+      percentage: qaWeightPerRoom * 0.3,
+      dependencies: [taskId - 1],
+      room: roomName
+    });
+
+    tasks.push({
+      id: taskId++,
+      phase: 'qa',
+      task: `Clean room`,
+      completed: false,
+      percentage: qaWeightPerRoom * 0.1,
+      dependencies: [taskId - 1],
+      room: roomName
+    });
+
+    tasks.push({
+      id: taskId++,
+      phase: 'qa',
+      task: `Room sign-off`,
+      completed: false,
+      percentage: qaWeightPerRoom * 0.1,
+      dependencies: [taskId - 1],
+      room: roomName
+    });
+  });
+
+  // FINAL SIGN-OFF
+  tasks.push({
+    id: taskId++,
+    phase: 'completion',
+    task: '✓ Confirm all rooms approved',
+    completed: false,
+    percentage: 0,
+    dependencies: [taskId - 1],
+    room: 'All'
+  });
+
+  tasks.push({
+    id: taskId++,
+    phase: 'completion',
+    task: '✓ Job complete - Final sign-off',
+    completed: false,
+    percentage: 0,
+    dependencies: [taskId - 1],
+    room: 'All'
+  });
+
+  return tasks;
+}
+
 // Create Job from Estimate Function
 async function createJobFromEstimate() {
   const totalPrice = document.getElementById('total-price').textContent;
@@ -1848,6 +2391,12 @@ async function createJobFromEstimate() {
 
   description += `\n\nESTIMATED TOTAL: $${totalPrice}`;
 
+  // Generate professional task list from estimate
+  const professionalTaskList = generateProfessionalTaskList();
+
+  // Store task list temporarily for job creation
+  window.pendingTaskList = professionalTaskList;
+
   // Open job modal and pre-fill with estimate data
   editingJobId = null;
   document.getElementById('job-modal-title').textContent = 'Create Job from Estimate';
@@ -1870,7 +2419,7 @@ async function createJobFromEstimate() {
   // Switch to Jobs tab
   switchTab('jobs');
 
-  alert('Estimate loaded! Please fill in client details and save the job.');
+  alert(`Estimate loaded with ${professionalTaskList.length} professional tasks! Please fill in client details and save the job.`);
 }
 
 renderRooms();
