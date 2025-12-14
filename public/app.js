@@ -88,6 +88,11 @@ function generateProfessionalTaskDisplay(jobId, checklist) {
     }
   });
 
+  // Sort tasks within each phase by ID to maintain proper order
+  Object.values(phases).forEach(phase => {
+    phase.tasks.sort((a, b) => a.id - b.id);
+  });
+
   // Check if task dependencies are met
   const canCheckTask = (task) => {
     if (task.completed) return true;
