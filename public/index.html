@@ -16,6 +16,7 @@
     <div class="tabs">
       <button class="tab-btn active" data-tab="jobs">Jobs</button>
       <button class="tab-btn" data-tab="employees">Employees</button>
+      <button class="tab-btn" data-tab="estimator">Estimator</button>
     </div>
 
     <!-- JOBS TAB -->
@@ -47,6 +48,62 @@
       </div>
 
       <div id="employees-list" class="list"></div>
+    </div>
+
+    <!-- ESTIMATOR TAB -->
+    <div id="estimator-tab" class="tab-content">
+      <div class="estimator-section">
+        <h2 style="text-align:center;font-size:2rem;margin-bottom:0.5rem;color:var(--primary);">Professional Painting Estimator</h2>
+        <p style="text-align:center;font-size:1rem;color:var(--text-secondary);margin-bottom:1rem;">Premium Resene paints • Professional quality • 5-year guarantee</p>
+        <span class="estimator-badge">December 2025 NZ market prices</span>
+        <div class="disclaimer-top">⚠️ Indicative estimate only. Final price requires free on-site quote with color consultation.</div>
+
+        <div class="estimator-tabs">
+          <button class="estimator-tab-btn interior-tab active" onclick="switchEstimatorTab('interior')">🏠 Interior Rooms</button>
+          <button class="estimator-tab-btn exterior-tab" onclick="switchEstimatorTab('exterior')">🏡 Exterior Areas</button>
+        </div>
+
+        <div id="interior-tab-est" class="estimator-tab-content active">
+          <button class="btn btn-add" onclick="addRoom()">+ Add interior room</button>
+          <div id="rooms-container"></div>
+        </div>
+
+        <div id="exterior-tab-est" class="estimator-tab-content">
+          <button class="btn btn-add" onclick="addExterior()">+ Add exterior area</button>
+          <div id="exterior-container"></div>
+        </div>
+
+        <div id="estimate-section" style="display:none;">
+          <div class="estimate-card">
+            <h2 style="text-align:center;font-size:2rem;margin-bottom:1.5rem;color:var(--primary);font-weight:900;">Estimate Quote Summary</h2>
+
+            <div id="interior-summary" style="display:none;">
+              <h3 style="color:var(--primary);margin-bottom:1rem;font-size:1.2rem;font-weight:800;">Interior Painting</h3>
+              <table><thead><tr><th>Room</th><th>Size</th><th>Tasks & Colors</th><th>Price</th></tr></thead><tbody id="interior-table"></tbody></table>
+              <div style="text-align:right;font-weight:800;color:var(--primary);font-size:1.1rem;">Interior Subtotal: $<span id="interior-subtotal">0</span></div>
+            </div>
+
+            <div id="exterior-summary" style="display:none;">
+              <h3 style="color:var(--primary);margin:2rem 0 1rem;font-size:1.2rem;font-weight:800;">Exterior Painting</h3>
+              <table><thead><tr><th>Area</th><th>Details</th><th>Tasks & Colors</th><th>Price</th></tr></thead><tbody id="exterior-table"></tbody></table>
+              <div style="text-align:right;font-weight:800;color:var(--primary);font-size:1.1rem;">Exterior Subtotal: $<span id="exterior-subtotal">0</span></div>
+            </div>
+
+            <div class="price-card">
+              <h3 style="margin:0;opacity:0.9;font-size:1.1rem;font-weight:700;">Total Project Estimate</h3>
+              <div class="price-amount">$<span id="total-price">0</span></div>
+              <div class="price-range">Range: $<span id="min-price">0</span> – $<span id="max-price">0</span></div>
+              <p style="margin-top:1.2rem;opacity:0.9;font-size:0.9rem;font-weight:600;">Includes GST • Full preparation • Premium Resene paints • 5-year guarantee</p>
+            </div>
+
+            <div class="disclaimer-bottom">
+              Indicative pricing only. Free on-site quote and colour consultation required for final price.
+            </div>
+
+            <button class="btn btn-email" onclick="emailQuote()">📧 Request professional quote</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
