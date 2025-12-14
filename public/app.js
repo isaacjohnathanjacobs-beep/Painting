@@ -81,6 +81,18 @@ async function displayJobs(jobs) {
 
   const jobsHTML = await Promise.all(jobs.map(async job => {
     const employees = await getJobEmployees(job.id);
+
+    // Parse checklist from JSON
+    let checklist = [];
+    try {
+      checklist = job.checklist ? JSON.parse(job.checklist) : [];
+    } catch (e) {
+      checklist = [];
+    }
+
+    const completedCount = checklist.filter(item => item.completed).length;
+    const totalCount = checklist.length;
+
     return `
       <div class="card">
         <div class="card-header">
@@ -91,7 +103,7 @@ async function displayJobs(jobs) {
           <span class="status-badge status-${job.status}">${formatStatus(job.status)}</span>
         </div>
         <div class="card-body">
-          ${job.description ? `<p style="margin-bottom: 15px; color: var(--gray-700);">${job.description}</p>` : ''}
+          ${job.description ? `<p style="margin-bottom: 15px; color: var(--text-muted);">${job.description.replace(/\n/g, '<br>')}</p>` : ''}
           <div class="info-row">
             ${job.client_phone ? `<div class="info-item"><span class="info-label">Phone:</span><span class="info-value">${job.client_phone}</span></div>` : ''}
             ${job.client_email ? `<div class="info-item"><span class="info-label">Email:</span><span class="info-value">${job.client_email}</span></div>` : ''}
@@ -102,6 +114,25 @@ async function displayJobs(jobs) {
             ${job.estimated_hours ? `<div class="info-item"><span class="info-label">Est. Hours:</span><span class="info-value">${job.estimated_hours}</span></div>` : ''}
             ${job.estimated_cost ? `<div class="info-item"><span class="info-label">Est. Cost:</span><span class="info-value">$${job.estimated_cost}</span></div>` : ''}
           </div>
+          ${checklist.length > 0 ? `
+            <div class="checklist-section">
+              <div class="checklist-header" onclick="toggleChecklist(${job.id})">
+                <h4>Task Checklist (${completedCount}/${totalCount})</h4>
+                <span class="checklist-toggle">▼</span>
+              </div>
+              <div id="checklist-${job.id}" class="checklist-items" style="display: none;">
+                ${checklist.map(item => `
+                  <div class="checklist-item">
+                    <input type="checkbox"
+                           id="task-${job.id}-${item.id}"
+                           ${item.completed ? 'checked' : ''}
+                           onchange="updateChecklistItem(${job.id}, ${item.id}, this.checked)">
+                    <label for="task-${job.id}-${item.id}"${item.completed ? ' class="completed-task"' : ''}>${item.task}</label>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
           ${employees.length > 0 ? `
             <div class="assigned-employees">
               <h4>Assigned Employees:</h4>
@@ -484,6 +515,34 @@ async function handleEstimateUpload(event) {
   }
 }
 
+function parseTasks(tasksString) {
+  if (!tasksString) return [];
+
+  // Split tasks by comma and parse each one
+  const taskList = tasksString.split(',').map(task => task.trim()).filter(t => t);
+
+  return taskList.map((task, index) => {
+    // Capitalize first letter and format nicely
+    let formattedTask = task.charAt(0).toUpperCase() + task.slice(1);
+
+    // Add "Paint" prefix if not already present and not "wallpaper removal"
+    if (!formattedTask.toLowerCase().includes('paint') &&
+        !formattedTask.toLowerCase().includes('removal') &&
+        !formattedTask.toLowerCase().includes('stain') &&
+        !formattedTask.toLowerCase().includes('oil')) {
+      formattedTask = 'Paint ' + formattedTask;
+    } else if (formattedTask.toLowerCase().includes('wallpaper removal')) {
+      formattedTask = 'Remove wallpaper';
+    }
+
+    return {
+      id: index + 1,
+      task: formattedTask,
+      completed: false
+    };
+  });
+}
+
 function parseEstimateFile(text) {
   try {
     const lines = text.split('\n').map(line => line.trim());
@@ -558,9 +617,11 @@ function parseEstimateFile(text) {
     let description = `Imported from estimate file\n\n`;
     description += `Type: ${jobType}\n`;
     if (details) description += `Details: ${details}\n`;
-    if (tasks) description += `Tasks: ${tasks}\n`;
     if (condition) description += `Condition: ${condition}\n`;
     if (coats) description += `Coats: ${coats}`;
+
+    // Parse tasks into checklist items
+    const checklist = parseTasks(tasks);
 
     // Return job data
     return {
@@ -575,11 +636,60 @@ function parseEstimateFile(text) {
       estimated_hours: null,
       actual_hours: null,
       estimated_cost: estimatedCost,
-      actual_cost: null
+      actual_cost: null,
+      checklist: checklist
     };
   } catch (error) {
     console.error('Error parsing estimate:', error);
     return null;
+  }
+}
+
+// CHECKLIST FUNCTIONS
+function toggleChecklist(jobId) {
+  const checklistDiv = document.getElementById(`checklist-${jobId}`);
+  const isVisible = checklistDiv.style.display !== 'none';
+  checklistDiv.style.display = isVisible ? 'none' : 'block';
+
+  // Update toggle arrow
+  const toggle = checklistDiv.previousElementSibling.querySelector('.checklist-toggle');
+  if (toggle) {
+    toggle.textContent = isVisible ? '▼' : '▲';
+  }
+}
+
+async function updateChecklistItem(jobId, itemId, completed) {
+  try {
+    // Get current job data
+    const response = await fetch(`${API_URL}/jobs/${jobId}`);
+    const job = await response.json();
+
+    // Parse and update checklist
+    let checklist = [];
+    try {
+      checklist = job.checklist ? JSON.parse(job.checklist) : [];
+    } catch (e) {
+      checklist = [];
+    }
+
+    // Update the specific item
+    const itemIndex = checklist.findIndex(item => item.id === itemId);
+    if (itemIndex !== -1) {
+      checklist[itemIndex].completed = completed;
+    }
+
+    // Save updated checklist
+    await fetch(`${API_URL}/jobs/${jobId}/checklist`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checklist })
+    });
+
+    // Reload jobs to show updated progress
+    loadJobs();
+  } catch (error) {
+    console.error('Error updating checklist:', error);
+    alert('Error updating checklist item');
   }
 }
 

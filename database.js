@@ -51,6 +51,15 @@ function initializeDatabase() {
         FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
       )
     `);
+
+    // Add checklist column to jobs table if it doesn't exist
+    db.run(`
+      ALTER TABLE jobs ADD COLUMN checklist TEXT DEFAULT '[]'
+    `, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error adding checklist column:', err.message);
+      }
+    });
   });
 
   console.log('Database initialized successfully');

@@ -146,19 +146,21 @@ app.get('/api/jobs/:id', (req, res) => {
 // Create job
 app.post('/api/jobs', (req, res) => {
   const { client_name, client_phone, client_email, address, description,
-          estimated_hours, estimated_cost, start_date, end_date } = req.body;
+          estimated_hours, estimated_cost, start_date, end_date, checklist } = req.body;
 
   if (!client_name || !address) {
     res.status(400).json({ error: 'Client name and address are required' });
     return;
   }
 
+  const checklistJson = checklist ? JSON.stringify(checklist) : '[]';
+
   db.run(
     `INSERT INTO jobs (client_name, client_phone, client_email, address, description,
-                       estimated_hours, estimated_cost, start_date, end_date)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                       estimated_hours, estimated_cost, start_date, end_date, checklist)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [client_name, client_phone, client_email, address, description,
-     estimated_hours, estimated_cost, start_date, end_date],
+     estimated_hours, estimated_cost, start_date, end_date, checklistJson],
     function(err) {
       if (err) {
         res.status(500).json({ error: err.message });
@@ -172,15 +174,17 @@ app.post('/api/jobs', (req, res) => {
 // Update job
 app.put('/api/jobs/:id', (req, res) => {
   const { client_name, client_phone, client_email, address, description, status,
-          estimated_hours, actual_hours, estimated_cost, actual_cost, start_date, end_date } = req.body;
+          estimated_hours, actual_hours, estimated_cost, actual_cost, start_date, end_date, checklist } = req.body;
+
+  const checklistJson = checklist ? JSON.stringify(checklist) : '[]';
 
   db.run(
     `UPDATE jobs SET client_name = ?, client_phone = ?, client_email = ?, address = ?,
                      description = ?, status = ?, estimated_hours = ?, actual_hours = ?,
-                     estimated_cost = ?, actual_cost = ?, start_date = ?, end_date = ?
+                     estimated_cost = ?, actual_cost = ?, start_date = ?, end_date = ?, checklist = ?
      WHERE id = ?`,
     [client_name, client_phone, client_email, address, description, status,
-     estimated_hours, actual_hours, estimated_cost, actual_cost, start_date, end_date, req.params.id],
+     estimated_hours, actual_hours, estimated_cost, actual_cost, start_date, end_date, checklistJson, req.params.id],
     function(err) {
       if (err) {
         res.status(500).json({ error: err.message });
@@ -191,6 +195,28 @@ app.put('/api/jobs/:id', (req, res) => {
         return;
       }
       res.json({ message: 'Job updated successfully' });
+    }
+  );
+});
+
+// Update job checklist only
+app.patch('/api/jobs/:id/checklist', (req, res) => {
+  const { checklist } = req.body;
+  const checklistJson = JSON.stringify(checklist || []);
+
+  db.run(
+    'UPDATE jobs SET checklist = ? WHERE id = ?',
+    [checklistJson, req.params.id],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      if (this.changes === 0) {
+        res.status(404).json({ error: 'Job not found' });
+        return;
+      }
+      res.json({ message: 'Checklist updated successfully' });
     }
   );
 });
