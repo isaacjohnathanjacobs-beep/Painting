@@ -182,6 +182,12 @@ function generateMaterialsDisplay(jobId, materials) {
     return '';
   }
 
+  // Calculate total and completed items
+  const totalItems = materials.reduce((sum, cat) => sum + cat.items.length, 0);
+  const completedItems = materials.reduce((sum, cat) => {
+    return sum + cat.items.filter(item => item.checked).length;
+  }, 0);
+
   // Track if materials section is open
   const isOpen = openChecklists.has(`materials-${jobId}`);
 
@@ -191,43 +197,58 @@ function generateMaterialsDisplay(jobId, materials) {
         <div>
           <h4 style="margin: 0; font-size: 1.1rem; color: var(--accent);">📋 Materials & Tools Checklist</h4>
           <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-muted);">
-            ${materials.reduce((sum, cat) => sum + cat.items.length, 0)} items across ${materials.length} categories
+            ${completedItems}/${totalItems} items prepared • ${materials.length} categories
           </p>
         </div>
-        <span class="checklist-toggle" style="font-size: 1.2rem;">${isOpen ? '▲' : '▼'}</span>
+        <div style="text-align: right;">
+          <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent);">${Math.round((completedItems / totalItems) * 100) || 0}%</div>
+          <span class="checklist-toggle" style="font-size: 1.2rem;">${isOpen ? '▲' : '▼'}</span>
+        </div>
       </div>
 
       <div id="materials-${jobId}" class="professional-task-content" style="display: ${isOpen ? 'block' : 'none'};">
-        ${materials.map((category) => `
-          <div class="task-phase" style="border-left: 3px solid var(--accent);">
-            <div class="phase-header" style="border-left-color: var(--accent); background: rgba(59, 130, 246, 0.05);">
-              <div>
-                <h5 style="margin: 0; color: var(--accent); font-size: 1rem;">${category.category}</h5>
-                <small style="color: var(--text-muted);">${category.items.length} items</small>
-              </div>
-            </div>
+        ${materials.map((category) => {
+          const categoryCompleted = category.items.filter(item => item.checked).length;
+          const categoryTotal = category.items.length;
 
-            <div class="phase-tasks">
-              ${category.items.map((item) => `
-                <div class="professional-task-item" style="padding: 0.75rem; background: var(--bg-secondary);">
-                  <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
-                    <div style="flex: 1;">
-                      <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">
-                        ${item.name}
-                      </div>
-                      <div style="font-size: 0.8rem; color: var(--text-muted);">
-                        <span style="background: rgba(59, 130, 246, 0.1); padding: 0.2rem 0.5rem; border-radius: 4px; margin-right: 0.5rem;">
-                          Qty: ${item.quantity}
-                        </span>
-                        ${item.notes}
+          return `
+            <div class="task-phase" style="border-left: 3px solid var(--accent);">
+              <div class="phase-header" style="border-left-color: var(--accent); background: rgba(59, 130, 246, 0.05);">
+                <div>
+                  <h5 style="margin: 0; color: var(--accent); font-size: 1rem;">${category.category}</h5>
+                  <small style="color: var(--text-muted);">${categoryCompleted}/${categoryTotal} items</small>
+                </div>
+              </div>
+
+              <div class="phase-tasks">
+                ${category.items.map((item) => `
+                  <div class="professional-task-item ${item.checked ? 'completed' : ''}" style="padding: 0.75rem;">
+                    <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+                      <input type="checkbox"
+                             id="material-${jobId}-${item.id}"
+                             ${item.checked ? 'checked' : ''}
+                             onchange="updateMaterialItem(${jobId}, ${item.id}, this.checked)"
+                             style="margin-top: 0.25rem; width: 20px; height: 20px; cursor: pointer; accent-color: var(--accent); flex-shrink: 0;">
+                      <div style="flex: 1;">
+                        <label for="material-${jobId}-${item.id}" style="cursor: pointer; display: block;">
+                          <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem; ${item.checked ? 'text-decoration: line-through; opacity: 0.6;' : ''}">
+                            ${item.name}
+                          </div>
+                          <div style="font-size: 0.8rem; color: var(--text-muted);">
+                            <span style="background: rgba(59, 130, 246, 0.1); padding: 0.2rem 0.5rem; border-radius: 4px; margin-right: 0.5rem;">
+                              Qty: ${item.quantity}
+                            </span>
+                            ${item.notes}
+                          </div>
+                        </label>
                       </div>
                     </div>
                   </div>
-                </div>
-              `).join('')}
+                `).join('')}
+              </div>
             </div>
-          </div>
-        `).join('')}
+          `;
+        }).join('')}
       </div>
     </div>
   `;
@@ -249,6 +270,53 @@ function toggleMaterialsChecklist(jobId) {
   const toggle = materialsDiv.previousElementSibling.querySelector('.checklist-toggle');
   if (toggle) {
     toggle.textContent = isVisible ? '▼' : '▲';
+  }
+}
+
+async function updateMaterialItem(jobId, itemId, checked) {
+  try {
+    // Get current job data
+    const response = await fetch(`${API_URL}/jobs/${jobId}`);
+    const job = await response.json();
+
+    // Parse and update materials checklist
+    let materialsChecklist = [];
+    try {
+      materialsChecklist = job.materials_checklist ? JSON.parse(job.materials_checklist) : [];
+    } catch (e) {
+      materialsChecklist = [];
+    }
+
+    // Find and update the specific item across all categories
+    let itemFound = false;
+    materialsChecklist.forEach(category => {
+      const item = category.items.find(i => i.id === itemId);
+      if (item) {
+        item.checked = checked;
+        itemFound = true;
+      }
+    });
+
+    if (!itemFound) {
+      console.error('Material item not found:', itemId);
+      return;
+    }
+
+    // Save updated materials checklist
+    await fetch(`${API_URL}/jobs/${jobId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...job,
+        materials_checklist: materialsChecklist
+      })
+    });
+
+    // Reload jobs to show updated progress
+    loadJobs();
+  } catch (error) {
+    console.error('Error updating material item:', error);
+    alert('Error updating material item');
   }
 }
 
@@ -308,8 +376,8 @@ async function displayJobs(jobs) {
             ${job.estimated_hours ? `<div class="info-item"><span class="info-label">Est. Hours:</span><span class="info-value">${job.estimated_hours}</span></div>` : ''}
             ${job.estimated_cost ? `<div class="info-item"><span class="info-label">Est. Cost:</span><span class="info-value">$${job.estimated_cost}</span></div>` : ''}
           </div>
-          ${checklist.length > 0 ? generateProfessionalTaskDisplay(job.id, checklist) : ''}
           ${materialsChecklist.length > 0 ? generateMaterialsDisplay(job.id, materialsChecklist) : ''}
+          ${checklist.length > 0 ? generateProfessionalTaskDisplay(job.id, checklist) : ''}
           ${employees.length > 0 ? `
             <div class="assigned-employees">
               <h4>Assigned Employees:</h4>
@@ -2479,6 +2547,7 @@ function generateProfessionalTaskList() {
 // Generate Materials Checklist based on Estimate
 function generateMaterialsChecklist() {
   const materials = [];
+  let itemId = 1; // Track unique IDs for each item
 
   // Calculate totals
   const validRooms = rooms.filter(r => calcRoom(r) > 0);
@@ -2536,13 +2605,13 @@ function generateMaterialsChecklist() {
   materials.push({
     category: 'Access & Protection Equipment',
     items: [
-      { name: 'Drop sheets (canvas or heavy-duty plastic)', quantity: Math.ceil(totalFloorArea / 10) + ' sheets', notes: 'Scaled to total floor area' },
-      { name: 'Additional plastic sheeting for furniture', quantity: Math.ceil(totalRooms / 2) + ' rolls', notes: 'For protecting furniture and fixed items' },
-      { name: 'Masking tape - Low-tack', quantity: Math.ceil(totalSurfaces / 3) + ' rolls', notes: 'For delicate surfaces' },
-      { name: 'Masking tape - Standard', quantity: Math.ceil(totalSurfaces / 2) + ' rolls', notes: 'For general use' },
-      { name: 'Step ladders', quantity: totalRooms > 3 ? '2' : '1', notes: 'Additional ladder for larger jobs' },
-      { name: 'Work lights (portable LED)', quantity: Math.ceil(totalRooms / 3) + ' units', notes: 'For defect detection' },
-      { name: 'Extension leads and power boards', quantity: '2 sets', notes: 'For power tools' }
+      { id: itemId++, name: 'Drop sheets (canvas or heavy-duty plastic)', quantity: Math.ceil(totalFloorArea / 10) + ' sheets', notes: 'Scaled to total floor area', checked: false },
+      { id: itemId++, name: 'Additional plastic sheeting for furniture', quantity: Math.ceil(totalRooms / 2) + ' rolls', notes: 'For protecting furniture and fixed items', checked: false },
+      { id: itemId++, name: 'Masking tape - Low-tack', quantity: Math.ceil(totalSurfaces / 3) + ' rolls', notes: 'For delicate surfaces', checked: false },
+      { id: itemId++, name: 'Masking tape - Standard', quantity: Math.ceil(totalSurfaces / 2) + ' rolls', notes: 'For general use', checked: false },
+      { id: itemId++, name: 'Step ladders', quantity: totalRooms > 3 ? '2' : '1', notes: 'Additional ladder for larger jobs', checked: false },
+      { id: itemId++, name: 'Work lights (portable LED)', quantity: Math.ceil(totalRooms / 3) + ' units', notes: 'For defect detection', checked: false },
+      { id: itemId++, name: 'Extension leads and power boards', quantity: '2 sets', notes: 'For power tools', checked: false }
     ]
   });
 
@@ -2551,13 +2620,13 @@ function generateMaterialsChecklist() {
     materials.push({
       category: 'Wallpaper Removal Tools',
       items: [
-        { name: 'Wallpaper scraper(s)', quantity: '2-3', notes: 'For stripping wallpaper' },
-        { name: 'Broad knives / stripping blades', quantity: '2-3', notes: 'Various sizes' },
-        { name: 'Spray bottles or pump sprayer', quantity: '1-2', notes: 'For wetting wallpaper' },
-        { name: 'Buckets', quantity: '2-3', notes: 'For water and waste' },
-        { name: 'Sponges or stripping pads', quantity: '1 pack', notes: 'For cleaning' },
-        { name: 'Heavy-duty rubbish bags', quantity: Math.ceil(totalRooms * 2) + ' bags', notes: 'For wallpaper disposal' },
-        { name: 'Disposable gloves', quantity: '2 boxes', notes: 'For protection' }
+        { id: itemId++, name: 'Wallpaper scraper(s)', quantity: '2-3', notes: 'For stripping wallpaper', checked: false },
+        { id: itemId++, name: 'Broad knives / stripping blades', quantity: '2-3', notes: 'Various sizes', checked: false },
+        { id: itemId++, name: 'Spray bottles or pump sprayer', quantity: '1-2', notes: 'For wetting wallpaper', checked: false },
+        { id: itemId++, name: 'Buckets', quantity: '2-3', notes: 'For water and waste', checked: false },
+        { id: itemId++, name: 'Sponges or stripping pads', quantity: '1 pack', notes: 'For cleaning', checked: false },
+        { id: itemId++, name: 'Heavy-duty rubbish bags', quantity: Math.ceil(totalRooms * 2) + ' bags', notes: 'For wallpaper disposal', checked: false },
+        { id: itemId++, name: 'Disposable gloves', quantity: '2 boxes', notes: 'For protection', checked: false }
       ]
     });
   }
@@ -2566,14 +2635,14 @@ function generateMaterialsChecklist() {
   materials.push({
     category: 'Prep & Repair Materials',
     items: [
-      { name: 'Interior wall filler / stopping compound', quantity: Math.ceil(totalRooms / 2) + ' tubs', notes: 'For wall repairs' },
-      { name: 'Fine surface filler', quantity: hasTrim ? Math.ceil(totalRooms / 3) + ' tubs' : '1 tub', notes: 'For trim and joinery' },
-      { name: 'Flexible gap filler (No More Gaps)', quantity: Math.ceil(totalRooms / 2) + ' tubes', notes: 'For gaps and cracks' },
-      { name: 'Caulking gun', quantity: '1-2', notes: 'For gap filler application' },
-      { name: 'Putty knives / filling knives', quantity: '1 set (3-4 sizes)', notes: 'Various sizes for different tasks' },
-      { name: 'Scrapers (paint and filling)', quantity: '2-3', notes: 'For prep work' },
-      { name: 'Sugar soap or surface cleaner', quantity: Math.ceil(totalRooms / 3) + ' bottles', notes: 'For cleaning surfaces' },
-      { name: 'Cleaning rags / wipes', quantity: '2 packs', notes: 'For wiping and cleaning' }
+      { id: itemId++, name: 'Interior wall filler / stopping compound', quantity: Math.ceil(totalRooms / 2) + ' tubs', notes: 'For wall repairs', checked: false },
+      { id: itemId++, name: 'Fine surface filler', quantity: hasTrim ? Math.ceil(totalRooms / 3) + ' tubs' : '1 tub', notes: 'For trim and joinery', checked: false },
+      { id: itemId++, name: 'Flexible gap filler (No More Gaps)', quantity: Math.ceil(totalRooms / 2) + ' tubes', notes: 'For gaps and cracks', checked: false },
+      { id: itemId++, name: 'Caulking gun', quantity: '1-2', notes: 'For gap filler application', checked: false },
+      { id: itemId++, name: 'Putty knives / filling knives', quantity: '1 set (3-4 sizes)', notes: 'Various sizes for different tasks', checked: false },
+      { id: itemId++, name: 'Scrapers (paint and filling)', quantity: '2-3', notes: 'For prep work', checked: false },
+      { id: itemId++, name: 'Sugar soap or surface cleaner', quantity: Math.ceil(totalRooms / 3) + ' bottles', notes: 'For cleaning surfaces', checked: false },
+      { id: itemId++, name: 'Cleaning rags / wipes', quantity: '2 packs', notes: 'For wiping and cleaning', checked: false }
     ]
   });
 
@@ -2582,14 +2651,14 @@ function generateMaterialsChecklist() {
   materials.push({
     category: 'Sanding System (Mandatory)',
     items: [
-      { name: 'Sanding blocks', quantity: '2-3', notes: 'For flat surfaces' },
-      { name: 'Pole sander', quantity: hasCeilings || hasWalls ? '1' : '0', notes: 'For ceilings and walls' },
-      { name: 'Detail sanding sponges', quantity: '1 pack', notes: 'For corners and details' },
-      { name: 'Sandpaper - Coarse grit (60-80)', quantity: Math.ceil(sandpaperQty * 0.3) + ' sheets', notes: 'For prep/repairs' },
-      { name: 'Sandpaper - Medium grit (120-150)', quantity: Math.ceil(sandpaperQty * 0.4) + ' sheets', notes: 'For general prep' },
-      { name: 'Sandpaper - Fine grit (220-240)', quantity: Math.ceil(sandpaperQty * 0.5) + ' sheets', notes: 'For between coats (mandatory)' },
-      { name: 'Vacuum with fine dust filter', quantity: '1', notes: 'For dust removal' },
-      { name: 'Tack cloths or microfiber cloths', quantity: Math.ceil(totalSurfaces) + ' cloths', notes: 'For final dust removal' }
+      { id: itemId++, name: 'Sanding blocks', quantity: '2-3', notes: 'For flat surfaces', checked: false },
+      { id: itemId++, name: 'Pole sander', quantity: hasCeilings || hasWalls ? '1' : '0', notes: 'For ceilings and walls', checked: false },
+      { id: itemId++, name: 'Detail sanding sponges', quantity: '1 pack', notes: 'For corners and details', checked: false },
+      { id: itemId++, name: 'Sandpaper - Coarse grit (60-80)', quantity: Math.ceil(sandpaperQty * 0.3) + ' sheets', notes: 'For prep/repairs', checked: false },
+      { id: itemId++, name: 'Sandpaper - Medium grit (120-150)', quantity: Math.ceil(sandpaperQty * 0.4) + ' sheets', notes: 'For general prep', checked: false },
+      { id: itemId++, name: 'Sandpaper - Fine grit (220-240)', quantity: Math.ceil(sandpaperQty * 0.5) + ' sheets', notes: 'For between coats (mandatory)', checked: false },
+      { id: itemId++, name: 'Vacuum with fine dust filter', quantity: '1', notes: 'For dust removal', checked: false },
+      { id: itemId++, name: 'Tack cloths or microfiber cloths', quantity: Math.ceil(totalSurfaces) + ' cloths', notes: 'For final dust removal', checked: false }
     ]
   });
 
@@ -2597,15 +2666,15 @@ function generateMaterialsChecklist() {
   materials.push({
     category: 'Paint Application Tools',
     items: [
-      { name: 'Roller frames', quantity: '2-3', notes: 'Standard 9" frames' },
-      { name: 'Extension poles', quantity: '1-2', notes: 'For ceilings and high walls' },
-      { name: 'Roller sleeves - Walls (medium nap)', quantity: Math.ceil(totalSurfaces / 2) + ' sleeves', notes: 'For wall application' },
-      { name: 'Roller sleeves - Ceilings (long nap)', quantity: hasCeilings ? Math.ceil(totalRooms / 2) + ' sleeves' : '0', notes: 'For ceiling application' },
-      { name: 'Paint trays with liners', quantity: '2-3 trays + liners', notes: 'For roller application' },
-      { name: 'Paint buckets (5L)', quantity: '2-3', notes: 'For mixing and pouring' },
-      { name: 'Cutting-in brushes (2-3")', quantity: '2-3', notes: 'For edges and corners' },
-      { name: 'Trim/detail brushes (1-2")', quantity: hasTrim ? '3-4' : '2', notes: 'For doors, windows, skirting' },
-      { name: 'Paint stirring sticks', quantity: '1 pack', notes: 'For mixing paint' }
+      { id: itemId++, name: 'Roller frames', quantity: '2-3', notes: 'Standard 9" frames', checked: false },
+      { id: itemId++, name: 'Extension poles', quantity: '1-2', notes: 'For ceilings and high walls', checked: false },
+      { id: itemId++, name: 'Roller sleeves - Walls (medium nap)', quantity: Math.ceil(totalSurfaces / 2) + ' sleeves', notes: 'For wall application', checked: false },
+      { id: itemId++, name: 'Roller sleeves - Ceilings (long nap)', quantity: hasCeilings ? Math.ceil(totalRooms / 2) + ' sleeves' : '0', notes: 'For ceiling application', checked: false },
+      { id: itemId++, name: 'Paint trays with liners', quantity: '2-3 trays + liners', notes: 'For roller application', checked: false },
+      { id: itemId++, name: 'Paint buckets (5L)', quantity: '2-3', notes: 'For mixing and pouring', checked: false },
+      { id: itemId++, name: 'Cutting-in brushes (2-3")', quantity: '2-3', notes: 'For edges and corners', checked: false },
+      { id: itemId++, name: 'Trim/detail brushes (1-2")', quantity: hasTrim ? '3-4' : '2', notes: 'For doors, windows, skirting', checked: false },
+      { id: itemId++, name: 'Paint stirring sticks', quantity: '1 pack', notes: 'For mixing paint', checked: false }
     ]
   });
 
@@ -2617,9 +2686,11 @@ function generateMaterialsChecklist() {
     ? Math.ceil(totalSurfaces * 2)
     : Math.ceil(totalSurfaces * 0.5);
   paintItems.push({
+    id: itemId++,
     name: 'Primer/Sealer (Resene system)',
     quantity: primerQty + 'L',
-    notes: hasWallpaperRemoval ? 'Extra for wallpaper removal prep' : 'Based on surface condition'
+    notes: hasWallpaperRemoval ? 'Extra for wallpaper removal prep' : 'Based on surface condition',
+    checked: false
   });
 
   // Ceiling paint
@@ -2632,9 +2703,11 @@ function generateMaterialsChecklist() {
     }, 0);
     const ceilingPaintL = Math.ceil(ceilingArea * avgCoats * 0.12); // ~8m²/L coverage
     paintItems.push({
+      id: itemId++,
       name: 'Ceiling paint (Resene system)',
       quantity: ceilingPaintL + 'L',
-      notes: `For ${ceilingRooms.length} ceiling(s), ${avgCoats} coats + wastage`
+      notes: `For ${ceilingRooms.length} ceiling(s), ${avgCoats} coats + wastage`,
+      checked: false
     });
   }
 
@@ -2650,9 +2723,11 @@ function generateMaterialsChecklist() {
     }, 0);
     const wallPaintL = Math.ceil(wallArea * avgCoats * 0.12);
     paintItems.push({
+      id: itemId++,
       name: 'Wall paint (Resene system)',
       quantity: wallPaintL + 'L',
-      notes: `For ${wallRooms.length} room(s), ${avgCoats} coats + wastage`
+      notes: `For ${wallRooms.length} room(s), ${avgCoats} coats + wastage`,
+      checked: false
     });
   }
 
@@ -2660,9 +2735,11 @@ function generateMaterialsChecklist() {
   if (hasTrim || totalDoors > 0 || totalWindows > 0) {
     const trimQty = Math.ceil((totalRooms * 2) + (totalDoors * 0.5) + (totalWindows * 0.5));
     paintItems.push({
+      id: itemId++,
       name: 'Trim/Door/Window enamel (Resene system)',
       quantity: trimQty + 'L',
-      notes: `For skirting, doors, windows - ${avgCoats} coats + wastage`
+      notes: `For skirting, doors, windows - ${avgCoats} coats + wastage`,
+      checked: false
     });
   }
 
@@ -2675,9 +2752,9 @@ function generateMaterialsChecklist() {
   materials.push({
     category: 'Masking & Protection (Trim-First)',
     items: [
-      { name: 'Additional low-tack masking tape', quantity: Math.ceil(totalSurfaces / 2) + ' rolls', notes: 'For protecting finished trim/windows' },
-      { name: 'Plastic or paper masking rolls', quantity: hasTrim ? '2-3 rolls' : '1 roll', notes: 'For edge protection' },
-      { name: 'Edge protection materials', quantity: Math.ceil(totalRooms / 2) + ' sets', notes: 'For skirting and window sills' }
+      { id: itemId++, name: 'Additional low-tack masking tape', quantity: Math.ceil(totalSurfaces / 2) + ' rolls', notes: 'For protecting finished trim/windows', checked: false },
+      { id: itemId++, name: 'Plastic or paper masking rolls', quantity: hasTrim ? '2-3 rolls' : '1 roll', notes: 'For edge protection', checked: false },
+      { id: itemId++, name: 'Edge protection materials', quantity: Math.ceil(totalRooms / 2) + ' sets', notes: 'For skirting and window sills', checked: false }
     ]
   });
 
@@ -2685,12 +2762,12 @@ function generateMaterialsChecklist() {
   materials.push({
     category: 'Cleanup & Disposables',
     items: [
-      { name: 'Heavy-duty rubbish bags', quantity: Math.ceil(totalRooms * 1.5) + ' bags', notes: 'For waste disposal' },
-      { name: 'Roller and brush cleaning materials', quantity: '1 set', notes: 'Or budget for disposables' },
-      { name: 'Bucket liners', quantity: '1 pack', notes: 'For easy cleanup' },
-      { name: 'Disposable gloves', quantity: '2 boxes', notes: 'For protection' },
-      { name: 'Hand cleaner', quantity: '2 bottles', notes: 'For painter cleanup' },
-      { name: 'Paper towels / wipes', quantity: '2-3 rolls', notes: 'For general cleanup' }
+      { id: itemId++, name: 'Heavy-duty rubbish bags', quantity: Math.ceil(totalRooms * 1.5) + ' bags', notes: 'For waste disposal', checked: false },
+      { id: itemId++, name: 'Roller and brush cleaning materials', quantity: '1 set', notes: 'Or budget for disposables', checked: false },
+      { id: itemId++, name: 'Bucket liners', quantity: '1 pack', notes: 'For easy cleanup', checked: false },
+      { id: itemId++, name: 'Disposable gloves', quantity: '2 boxes', notes: 'For protection', checked: false },
+      { id: itemId++, name: 'Hand cleaner', quantity: '2 bottles', notes: 'For painter cleanup', checked: false },
+      { id: itemId++, name: 'Paper towels / wipes', quantity: '2-3 rolls', notes: 'For general cleanup', checked: false }
     ]
   });
 
@@ -2698,10 +2775,10 @@ function generateMaterialsChecklist() {
   materials.push({
     category: 'QA & Finishing',
     items: [
-      { name: 'Touch-up brushes (small)', quantity: '2-3', notes: 'For final touch-ups' },
-      { name: 'Fine grit sandpaper for defect correction', quantity: '10-15 sheets', notes: 'For final corrections' },
-      { name: 'Inspection light (LED)', quantity: '1', notes: 'For quality checking' },
-      { name: 'Spare paint for touch-ups', quantity: '10% of each color', notes: 'Retained for future touch-ups' }
+      { id: itemId++, name: 'Touch-up brushes (small)', quantity: '2-3', notes: 'For final touch-ups', checked: false },
+      { id: itemId++, name: 'Fine grit sandpaper for defect correction', quantity: '10-15 sheets', notes: 'For final corrections', checked: false },
+      { id: itemId++, name: 'Inspection light (LED)', quantity: '1', notes: 'For quality checking', checked: false },
+      { id: itemId++, name: 'Spare paint for touch-ups', quantity: '10% of each color', notes: 'Retained for future touch-ups', checked: false }
     ]
   });
 
