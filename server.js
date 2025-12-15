@@ -223,6 +223,28 @@ app.patch('/api/jobs/:id/checklist', (req, res) => {
   );
 });
 
+// Update job materials checklist only
+app.patch('/api/jobs/:id/materials', (req, res) => {
+  const { materials_checklist } = req.body;
+  const materialsChecklistJson = JSON.stringify(materials_checklist || []);
+
+  db.run(
+    'UPDATE jobs SET materials_checklist = ? WHERE id = ?',
+    [materialsChecklistJson, req.params.id],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      if (this.changes === 0) {
+        res.status(404).json({ error: 'Job not found' });
+        return;
+      }
+      res.json({ message: 'Materials checklist updated successfully' });
+    }
+  );
+});
+
 // Delete job
 app.delete('/api/jobs/:id', (req, res) => {
   db.run('DELETE FROM jobs WHERE id = ?', [req.params.id], function(err) {

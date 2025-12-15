@@ -282,8 +282,15 @@ async function updateMaterialItem(jobId, itemId, checked) {
     // Parse and update materials checklist
     let materialsChecklist = [];
     try {
-      materialsChecklist = job.materials_checklist ? JSON.parse(job.materials_checklist) : [];
+      if (typeof job.materials_checklist === 'string') {
+        materialsChecklist = JSON.parse(job.materials_checklist);
+      } else if (Array.isArray(job.materials_checklist)) {
+        materialsChecklist = job.materials_checklist;
+      } else {
+        materialsChecklist = [];
+      }
     } catch (e) {
+      console.error('Error parsing materials checklist:', e);
       materialsChecklist = [];
     }
 
@@ -302,14 +309,11 @@ async function updateMaterialItem(jobId, itemId, checked) {
       return;
     }
 
-    // Save updated materials checklist
-    await fetch(`${API_URL}/jobs/${jobId}`, {
-      method: 'PUT',
+    // Save updated materials checklist using PATCH endpoint
+    await fetch(`${API_URL}/jobs/${jobId}/materials`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...job,
-        materials_checklist: materialsChecklist
-      })
+      body: JSON.stringify({ materials_checklist: materialsChecklist })
     });
 
     // Reload jobs to show updated progress
@@ -339,16 +343,30 @@ async function displayJobs(jobs) {
     // Parse checklist from JSON
     let checklist = [];
     try {
-      checklist = job.checklist ? JSON.parse(job.checklist) : [];
+      if (typeof job.checklist === 'string') {
+        checklist = JSON.parse(job.checklist);
+      } else if (Array.isArray(job.checklist)) {
+        checklist = job.checklist;
+      } else {
+        checklist = [];
+      }
     } catch (e) {
+      console.error('Error parsing checklist:', e);
       checklist = [];
     }
 
     // Parse materials checklist from JSON
     let materialsChecklist = [];
     try {
-      materialsChecklist = job.materials_checklist ? JSON.parse(job.materials_checklist) : [];
+      if (typeof job.materials_checklist === 'string') {
+        materialsChecklist = JSON.parse(job.materials_checklist);
+      } else if (Array.isArray(job.materials_checklist)) {
+        materialsChecklist = job.materials_checklist;
+      } else {
+        materialsChecklist = [];
+      }
     } catch (e) {
+      console.error('Error parsing materials checklist:', e);
       materialsChecklist = [];
     }
 
@@ -943,8 +961,15 @@ async function updateChecklistItem(jobId, itemId, completed) {
     // Parse and update checklist
     let checklist = [];
     try {
-      checklist = job.checklist ? JSON.parse(job.checklist) : [];
+      if (typeof job.checklist === 'string') {
+        checklist = JSON.parse(job.checklist);
+      } else if (Array.isArray(job.checklist)) {
+        checklist = job.checklist;
+      } else {
+        checklist = [];
+      }
     } catch (e) {
+      console.error('Error parsing checklist:', e);
       checklist = [];
     }
 
