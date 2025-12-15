@@ -60,6 +60,15 @@ function initializeDatabase() {
         console.error('Error adding checklist column:', err.message);
       }
     });
+
+    // Add materials_checklist column to jobs table if it doesn't exist
+    db.run(`
+      ALTER TABLE jobs ADD COLUMN materials_checklist TEXT DEFAULT '[]'
+    `, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error adding materials_checklist column:', err.message);
+      }
+    });
   });
 
   console.log('Database initialized successfully');
