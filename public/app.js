@@ -67,7 +67,28 @@ async function loadJobs() {
   }
 }
 
-function generateProfessionalTaskDisplay(jobId, checklist) {
+async function generateProfessionalTaskDisplay(jobId, checklist) {
+  // Fetch task completion details
+  let taskCompletions = {};
+  try {
+    const response = await fetch(`/api/jobs/${jobId}/tasks`);
+    const tasks = await response.json();
+    tasks.forEach(task => {
+      taskCompletions[task.task_id] = task;
+    });
+  } catch (error) {
+    console.error('Error loading task completions:', error);
+  }
+
+  // Fetch employees to show names
+  let employees = [];
+  try {
+    const response = await fetch('/api/employees');
+    employees = await response.json();
+  } catch (error) {
+    console.error('Error loading employees:', error);
+  }
+
   // Calculate overall progress
   const totalPercentage = checklist.reduce((sum, task) => {
     return sum + (task.completed ? task.percentage : 0);
@@ -145,6 +166,17 @@ function generateProfessionalTaskDisplay(jobId, checklist) {
                 ${phase.tasks.map(task => {
                   const isEnabled = canCheckTask(task);
                   const hasUnmetDeps = !isEnabled && !task.completed;
+                  const completion = taskCompletions[task.id];
+
+                  // Get completion info
+                  let completionInfo = '';
+                  if (task.completed && completion) {
+                    const completedBy = employees.find(e => e.id === completion.completed_by);
+                    const completionDate = completion.completion_date;
+                    if (completedBy) {
+                      completionInfo = `<span style="color: var(--success); font-weight: 500;"> ✓ Completed by ${completedBy.name}${completionDate ? ` on ${completionDate}` : ''}</span>`;
+                    }
+                  }
 
                   return `
                     <div class="professional-task-item ${task.completed ? 'completed' : ''} ${!isEnabled ? 'disabled' : ''}">
@@ -161,6 +193,7 @@ function generateProfessionalTaskDisplay(jobId, checklist) {
                             <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">
                               ${task.room} ${task.percentage > 0 ? `• ${task.percentage.toFixed(1)}% of job` : ''}
                               ${hasUnmetDeps ? '<span style="color: var(--warning);"> • Blocked: prerequisites not complete</span>' : ''}
+                              ${completionInfo}
                             </div>
                           </label>
                         </div>
@@ -337,6 +370,15 @@ async function displayJobs(jobs) {
     return;
   }
 
+  // Fetch calendar assignments for mini calendar
+  let allAssignments = [];
+  try {
+    const response = await fetch('/api/calendar');
+    allAssignments = await response.json();
+  } catch (error) {
+    console.error('Error loading calendar assignments:', error);
+  }
+
   const jobsHTML = await Promise.all(jobs.map(async job => {
     const employees = await getJobEmployees(job.id);
 
@@ -376,6 +418,9 @@ async function displayJobs(jobs) {
     // Calculate predicted hours
     const predictedHours = calculatePredictedHours(job.estimated_hours, employees);
 
+    // Calculate predicted completion date
+    const predictedCompletion = checklist.length > 0 ? await calculatePredictedCompletionDate(job.id, checklist) : null;
+
     return `
       <div class="card">
         <div class="card-header">
@@ -403,8 +448,14 @@ async function displayJobs(jobs) {
               <div class="info-item"><span class="info-label">Team Efficiency:</span><span class="info-value">${employees.map(e => ((e.type === 'brush_hand' ? 0.667 : 1.0) * (e.rating || 1.0)).toFixed(2) + 'x').join(' + ')}</span></div>
             </div>
           ` : ''}
+          ${predictedCompletion ? `
+            <div class="info-row" style="background: #e3f2fd; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;">
+              <div class="info-item"><span class="info-label">📅 Predicted Completion:</span><span class="info-value" style="font-weight: 600; color: #1976d2;">${predictedCompletion.displayDate} (${predictedCompletion.daysRemaining} days)</span></div>
+              <div class="info-item"><span class="info-label">Daily Rate:</span><span class="info-value">${predictedCompletion.completionRate}% per day</span></div>
+            </div>
+          ` : ''}
           ${materialsChecklist.length > 0 ? generateMaterialsDisplay(job.id, materialsChecklist) : ''}
-          ${checklist.length > 0 ? generateProfessionalTaskDisplay(job.id, checklist) : ''}
+          ${checklist.length > 0 ? await generateProfessionalTaskDisplay(job.id, checklist) : ''}
           ${employees.length > 0 ? `
             <div class="assigned-employees">
               <h4>Assigned Employees:</h4>
@@ -413,9 +464,56 @@ async function displayJobs(jobs) {
               </div>
             </div>
           ` : ''}
+          ${(() => {
+            // Get assignments for this job
+            const jobAssignments = allAssignments.filter(a => a.job_id === job.id);
+
+            if (jobAssignments.length === 0) return '';
+
+            // Collect all assigned dates with employee names
+            const dateEmployees = {};
+            jobAssignments.forEach(a => {
+              const dates = JSON.parse(a.assigned_dates || '[]');
+              dates.forEach(dateStr => {
+                if (!dateEmployees[dateStr]) dateEmployees[dateStr] = [];
+                const emp = employees.find(e => e.id === a.employee_id);
+                if (emp) dateEmployees[dateStr].push(emp.name);
+              });
+            });
+
+            // Get upcoming dates
+            const today = new Date();
+            const upcomingDates = Object.keys(dateEmployees).filter(dateStr => {
+              const date = new Date(dateStr + 'T00:00:00');
+              return date >= today;
+            }).sort().slice(0, 7);
+
+            if (upcomingDates.length === 0) return '';
+
+            return `
+              <div class="mini-calendar" style="margin-top: 1rem;">
+                <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--primary);">📅 Work Schedule</h4>
+                <div class="mini-calendar-dates">
+                  ${upcomingDates.map(dateStr => {
+                    const date = new Date(dateStr + 'T00:00:00');
+                    const empList = dateEmployees[dateStr];
+                    const empText = empList.slice(0, 2).join(', ');
+                    const moreText = empList.length > 2 ? ` +${empList.length - 2}` : '';
+                    return `
+                      <div class="mini-calendar-date">
+                        <span class="date-label">${formatDateDisplay(date).substring(0, 9)}</span>
+                        <span class="date-job">${empText}${moreText}</span>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          })()}
         </div>
         <div class="card-actions">
           <button class="btn btn-secondary btn-sm" onclick="manageAssignments(${job.id})">Assign Employees</button>
+          <button class="btn btn-secondary btn-sm" onclick="endOfDayReview(${job.id})" title="Review today's performance and adjust ratings">📊 Day Review</button>
           <button class="btn btn-secondary btn-sm" onclick="editJob(${job.id})">Edit</button>
           <button class="btn btn-danger btn-sm" onclick="deleteJob(${job.id})">Delete</button>
         </div>
@@ -445,6 +543,63 @@ function calculatePredictedHours(estimatedHours, employees) {
   }
 
   return (estimatedHours / teamEfficiency).toFixed(1);
+}
+
+// Calculate predicted completion date based on actual progress
+async function calculatePredictedCompletionDate(jobId, checklist) {
+  try {
+    if (!checklist || checklist.length === 0) return null;
+
+    // Get task completion history
+    const response = await fetch(`/api/jobs/${jobId}/tasks`);
+    const taskCompletions = await response.json();
+
+    if (taskCompletions.length === 0) return null;
+
+    // Calculate completion dates
+    const completionDates = taskCompletions
+      .filter(t => t.completed && t.completion_date)
+      .map(t => new Date(t.completion_date + 'T00:00:00'))
+      .sort((a, b) => a - b);
+
+    if (completionDates.length === 0) return null;
+
+    const firstCompletion = completionDates[0];
+    const lastCompletion = completionDates[completionDates.length - 1];
+    const daysElapsed = Math.max(1, Math.ceil((lastCompletion - firstCompletion) / (1000 * 60 * 60 * 24)));
+
+    // Calculate progress percentage
+    const totalPercentage = checklist.reduce((sum, task) => sum + task.percentage, 0);
+    const completedPercentage = checklist.reduce((sum, task) => {
+      return sum + (task.completed ? task.percentage : 0);
+    }, 0);
+
+    if (completedPercentage === 0) return null;
+
+    // Calculate daily completion rate
+    const dailyRate = completedPercentage / daysElapsed;
+
+    if (dailyRate === 0) return null;
+
+    // Calculate remaining days
+    const remainingPercentage = totalPercentage - completedPercentage;
+    const daysRemaining = Math.ceil(remainingPercentage / dailyRate);
+
+    // Calculate predicted completion date
+    const today = new Date();
+    const predictedDate = new Date(today);
+    predictedDate.setDate(predictedDate.getDate() + daysRemaining);
+
+    return {
+      date: formatDate(predictedDate),
+      displayDate: formatDateDisplay(predictedDate),
+      daysRemaining,
+      completionRate: dailyRate.toFixed(1)
+    };
+  } catch (error) {
+    console.error('Error calculating predicted completion date:', error);
+    return null;
+  }
 }
 
 async function getJobEmployees(jobId) {
@@ -529,7 +684,7 @@ async function loadEmployees() {
   }
 }
 
-function displayEmployees(employees) {
+async function displayEmployees(employees) {
   const employeesList = document.getElementById('employees-list');
 
   if (employees.length === 0) {
@@ -542,33 +697,108 @@ function displayEmployees(employees) {
     return;
   }
 
-  const employeesHTML = employees.map(emp => `
-    <div class="card">
-      <div class="card-header">
-        <div>
-          <div class="card-title">${emp.name}</div>
-          ${emp.role ? `<div class="card-subtitle">${emp.role}</div>` : ''}
+  // Fetch calendar assignments for mini calendar
+  let assignments = [];
+  try {
+    const response = await fetch('/api/calendar');
+    assignments = await response.json();
+  } catch (error) {
+    console.error('Error loading calendar assignments:', error);
+  }
+
+  // Fetch jobs for display
+  let jobs = [];
+  try {
+    const response = await fetch('/api/jobs');
+    jobs = await response.json();
+  } catch (error) {
+    console.error('Error loading jobs:', error);
+  }
+
+  const employeesHTML = employees.map(emp => {
+    // Get assignments for this employee
+    const empAssignments = assignments.filter(a => a.employee_id === emp.id);
+
+    // Get upcoming dates (next 14 days)
+    const today = new Date();
+    const upcomingDates = [];
+    for (let i = 0; i < 14; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() + i);
+      upcomingDates.push(formatDate(date));
+    }
+
+    // Build mini calendar HTML
+    let calendarHTML = '';
+    if (empAssignments.length > 0) {
+      const assignedDates = new Set();
+      const dateJobs = {};
+
+      empAssignments.forEach(a => {
+        const dates = JSON.parse(a.assigned_dates || '[]');
+        dates.forEach(d => {
+          assignedDates.add(d);
+          if (!dateJobs[d]) dateJobs[d] = [];
+          const job = jobs.find(j => j.id === a.job_id);
+          if (job) dateJobs[d].push(job.client_name);
+        });
+      });
+
+      // Filter to upcoming assigned dates
+      const upcomingAssigned = upcomingDates.filter(d => assignedDates.has(d));
+
+      if (upcomingAssigned.length > 0) {
+        calendarHTML = `
+          <div class="mini-calendar">
+            <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--primary);">📅 Upcoming Schedule</h4>
+            <div class="mini-calendar-dates">
+              ${upcomingAssigned.slice(0, 7).map(dateStr => {
+                const date = new Date(dateStr + 'T00:00:00');
+                const jobsList = dateJobs[dateStr] || [];
+                const jobsText = jobsList.slice(0, 2).join(', ');
+                const moreText = jobsList.length > 2 ? ` +${jobsList.length - 2} more` : '';
+                return `
+                  <div class="mini-calendar-date" title="${jobsText}${moreText}">
+                    <span class="date-label">${formatDateDisplay(date).substring(0, 6)}</span>
+                    <span class="date-job">${jobsList[0] || 'Assigned'}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    return `
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">${emp.name}</div>
+            ${emp.role ? `<div class="card-subtitle">${emp.role}</div>` : ''}
+          </div>
+          <span class="status-badge status-${emp.status}">${formatStatus(emp.status)}</span>
         </div>
-        <span class="status-badge status-${emp.status}">${formatStatus(emp.status)}</span>
-      </div>
-      <div class="card-body">
-        <div class="info-row">
-          ${emp.email ? `<div class="info-item"><span class="info-label">Email:</span><span class="info-value">${emp.email}</span></div>` : ''}
-          ${emp.phone ? `<div class="info-item"><span class="info-label">Phone:</span><span class="info-value">${emp.phone}</span></div>` : ''}
-          ${emp.hourly_rate ? `<div class="info-item"><span class="info-label">Hourly Rate:</span><span class="info-value">$${emp.hourly_rate}/hr</span></div>` : ''}
+        <div class="card-body">
+          <div class="info-row">
+            ${emp.email ? `<div class="info-item"><span class="info-label">Email:</span><span class="info-value">${emp.email}</span></div>` : ''}
+            ${emp.phone ? `<div class="info-item"><span class="info-label">Phone:</span><span class="info-value">${emp.phone}</span></div>` : ''}
+            ${emp.hourly_rate ? `<div class="info-item"><span class="info-label">Hourly Rate:</span><span class="info-value">$${emp.hourly_rate}/hr</span></div>` : ''}
+          </div>
+          <div class="info-row" style="margin-top: 0.5rem; border-top: 1px solid #eee; padding-top: 0.5rem;">
+            <div class="info-item"><span class="info-label">Type:</span><span class="info-value">${emp.type === 'brush_hand' ? 'Brush Hand (67%)' : 'Painter (100%)'}</span></div>
+            <div class="info-item"><span class="info-label">Rating:</span><span class="info-value">${emp.rating || 1.0}x</span></div>
+            <div class="info-item"><span class="info-label">Efficiency:</span><span class="info-value">${((emp.type === 'brush_hand' ? 0.667 : 1.0) * (emp.rating || 1.0)).toFixed(2)}x</span></div>
+          </div>
+          ${calendarHTML}
         </div>
-        <div class="info-row" style="margin-top: 0.5rem; border-top: 1px solid #eee; padding-top: 0.5rem;">
-          <div class="info-item"><span class="info-label">Type:</span><span class="info-value">${emp.type === 'brush_hand' ? 'Brush Hand (67%)' : 'Painter (100%)'}</span></div>
-          <div class="info-item"><span class="info-label">Rating:</span><span class="info-value">${emp.rating || 1.0}x</span></div>
-          <div class="info-item"><span class="info-label">Efficiency:</span><span class="info-value">${((emp.type === 'brush_hand' ? 0.667 : 1.0) * (emp.rating || 1.0)).toFixed(2)}x</span></div>
+        <div class="card-actions">
+          <button class="btn btn-secondary btn-sm" onclick="editEmployee(${emp.id})">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteEmployee(${emp.id})">Delete</button>
         </div>
       </div>
-      <div class="card-actions">
-        <button class="btn btn-secondary btn-sm" onclick="editEmployee(${emp.id})">Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteEmployee(${emp.id})">Delete</button>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 
   employeesList.innerHTML = employeesHTML;
 }
@@ -1033,9 +1263,110 @@ async function updateChecklistItem(jobId, itemId, completed) {
   }
 }
 
-// Update professional task (same as updateChecklistItem but for new UI)
+// Update professional task with employee tracking
 async function updateProfessionalTask(jobId, taskId, completed) {
-  await updateChecklistItem(jobId, taskId, completed);
+  try {
+    if (completed) {
+      // When marking complete, ask which employee completed it
+      const employees = await getJobEmployees(jobId);
+
+      if (employees.length === 0) {
+        alert('No employees assigned to this job. Assign employees first.');
+        // Reload to uncheck the box
+        loadJobs();
+        return;
+      }
+
+      // Get today's date in YYYY-MM-DD format
+      const today = formatDate(new Date());
+
+      // Get calendar assignments to see who's on-site today
+      const calendarRes = await fetch('/api/calendar');
+      const assignments = await calendarRes.json();
+
+      const onSiteToday = employees.filter(emp => {
+        const assignment = assignments.find(a => a.job_id === jobId && a.employee_id === emp.id);
+        if (!assignment) return false;
+        const dates = JSON.parse(assignment.assigned_dates || '[]');
+        return dates.includes(today);
+      });
+
+      // Build selection prompt
+      let message = 'Who completed this task?\n\n';
+      if (onSiteToday.length > 0) {
+        message += 'On-site today:\n';
+        onSiteToday.forEach((emp, idx) => {
+          message += `${idx + 1}. ${emp.name} ⭐\n`;
+        });
+
+        if (employees.length > onSiteToday.length) {
+          message += '\nOther assigned employees:\n';
+          const others = employees.filter(e => !onSiteToday.find(o => o.id === e.id));
+          others.forEach((emp, idx) => {
+            message += `${onSiteToday.length + idx + 1}. ${emp.name}\n`;
+          });
+        }
+      } else {
+        message += 'Assigned employees:\n';
+        employees.forEach((emp, idx) => {
+          message += `${idx + 1}. ${emp.name}\n`;
+        });
+      }
+
+      const choice = prompt(message + '\nEnter employee number:', '1');
+
+      if (!choice) {
+        // Cancelled - reload to uncheck the box
+        loadJobs();
+        return;
+      }
+
+      const empIndex = parseInt(choice) - 1;
+      if (empIndex < 0 || empIndex >= employees.length) {
+        alert('Invalid employee number');
+        loadJobs();
+        return;
+      }
+
+      const completedByEmployee = employees[empIndex];
+
+      // Update task with completed_by info
+      await updateTaskCompletion(jobId, taskId, true, completedByEmployee.id, onSiteToday.map(e => e.id), today);
+    } else {
+      // Marking incomplete - just update the checklist
+      await updateChecklistItem(jobId, taskId, false);
+    }
+  } catch (error) {
+    console.error('Error updating professional task:', error);
+    alert('Error updating task');
+    loadJobs();
+  }
+}
+
+// Update task completion with employee tracking
+async function updateTaskCompletion(jobId, taskId, completed, completedBy, onSiteEmployees, completionDate) {
+  try {
+    // Update checklist
+    await updateChecklistItem(jobId, taskId, completed);
+
+    // Store task completion details in tasks table
+    await fetch(`/api/jobs/${jobId}/tasks/${taskId}/complete`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        completed,
+        completed_by: completedBy,
+        on_site_employees: JSON.stringify(onSiteEmployees),
+        completion_date: completionDate
+      })
+    });
+
+    // Reload jobs to show updated state
+    loadJobs();
+  } catch (error) {
+    console.error('Error saving task completion:', error);
+    throw error;
+  }
 }
 
 // Close modals when clicking outside
@@ -3585,3 +3916,542 @@ async function createJobFromEstimate() {
 
 renderRooms();
 renderExteriors();
+
+// ============================================================
+// CALENDAR FUNCTIONALITY
+// ============================================================
+
+let currentCalendarWeek = new Date();
+let calendarAssignments = [];
+let allJobs = [];
+let allEmployees = [];
+
+// Format date as YYYY-MM-DD
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Get week start (Monday) for a given date
+function getWeekStart(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
+  return new Date(d.setDate(diff));
+}
+
+// Get week end (Sunday)
+function getWeekEnd(date) {
+  const start = getWeekStart(date);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  return end;
+}
+
+// Format date for display (e.g., "Mon 17 Dec")
+function formatDateDisplay(date) {
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${days[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]}`;
+}
+
+// Check if date matches YYYY-MM-DD string
+function isSameDate(date, dateString) {
+  return formatDate(date) === dateString;
+}
+
+// Detect conflicts (multiple jobs on same employee-date)
+function detectConflicts(assignments) {
+  const conflicts = {};
+
+  assignments.forEach(assignment => {
+    const dates = JSON.parse(assignment.assigned_dates || '[]');
+    dates.forEach(dateStr => {
+      const key = `${assignment.employee_id}_${dateStr}`;
+      if (!conflicts[key]) {
+        conflicts[key] = [];
+      }
+      conflicts[key].push(assignment);
+    });
+  });
+
+  // Return only the conflicts (2+ jobs on same date)
+  const conflictKeys = Object.keys(conflicts).filter(key => conflicts[key].length > 1);
+  return conflictKeys.reduce((obj, key) => {
+    obj[key] = conflicts[key];
+    return obj;
+  }, {});
+}
+
+// Load and render calendar
+async function loadCalendar() {
+  try {
+    // Fetch calendar data and all jobs/employees
+    const [assignmentsRes, jobsRes, employeesRes] = await Promise.all([
+      fetch('/api/calendar'),
+      fetch('/api/jobs'),
+      fetch('/api/employees')
+    ]);
+
+    calendarAssignments = await assignmentsRes.json();
+    allJobs = await jobsRes.json();
+    allEmployees = await employeesRes.json();
+
+    renderCalendar();
+  } catch (error) {
+    console.error('Error loading calendar:', error);
+    alert('Failed to load calendar data');
+  }
+}
+
+// Render calendar grid
+function renderCalendar() {
+  const weekStart = getWeekStart(currentCalendarWeek);
+  const weekEnd = getWeekEnd(currentCalendarWeek);
+
+  // Update week label
+  document.getElementById('calendar-week-label').textContent =
+    `Week of ${formatDateDisplay(weekStart)} – ${formatDateDisplay(weekEnd)}`;
+
+  // Generate days array
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(weekStart);
+    day.setDate(day.getDate() + i);
+    days.push(day);
+  }
+
+  // Detect conflicts
+  const conflicts = detectConflicts(calendarAssignments);
+
+  // Filter active employees only
+  const activeEmployees = allEmployees.filter(emp => emp.status === 'active');
+
+  // Build grid HTML
+  let gridHTML = '';
+
+  // Header row
+  gridHTML += '<div class="calendar-header-cell">Employee</div>';
+  days.forEach(day => {
+    const isToday = isSameDate(day, formatDate(new Date()));
+    gridHTML += `<div class="calendar-header-cell ${isToday ? 'today' : ''}">${formatDateDisplay(day)}</div>`;
+  });
+
+  // Employee rows
+  activeEmployees.forEach(employee => {
+    // Employee name cell
+    gridHTML += `<div class="calendar-employee-cell">${employee.name}</div>`;
+
+    // Day cells
+    days.forEach(day => {
+      const dateStr = formatDate(day);
+      const isToday = isSameDate(day, formatDate(new Date()));
+
+      // Find assignments for this employee on this date
+      const assignmentsForDay = calendarAssignments.filter(a => {
+        const dates = JSON.parse(a.assigned_dates || '[]');
+        return a.employee_id === employee.id && dates.includes(dateStr);
+      });
+
+      // Check for conflicts
+      const conflictKey = `${employee.id}_${dateStr}`;
+      const hasConflict = conflicts[conflictKey] && conflicts[conflictKey].length > 1;
+
+      let cellClass = 'calendar-day-cell';
+      if (isToday) cellClass += ' today';
+      if (assignmentsForDay.length > 0) cellClass += ' has-assignment';
+      if (hasConflict) cellClass += ' has-conflict';
+
+      // Build cell content
+      let cellContent = '';
+      if (assignmentsForDay.length > 0) {
+        assignmentsForDay.forEach(assignment => {
+          const job = allJobs.find(j => j.id === assignment.job_id);
+          if (job) {
+            cellContent += `<div class="assignment-badge" title="${job.client_name} - ${job.address}">${job.client_name}</div>`;
+          }
+        });
+      }
+
+      gridHTML += `<div class="${cellClass}" onclick="handleCalendarCellClick(${employee.id}, '${dateStr}', '${employee.name}')">${cellContent}</div>`;
+    });
+  });
+
+  document.getElementById('calendar-grid').innerHTML = gridHTML;
+}
+
+// Handle cell click - assign/unassign employee to date
+async function handleCalendarCellClick(employeeId, dateStr, employeeName) {
+  // Find existing assignments for this employee on this date
+  const existingAssignments = calendarAssignments.filter(a => {
+    const dates = JSON.parse(a.assigned_dates || '[]');
+    return a.employee_id === employeeId && dates.includes(dateStr);
+  });
+
+  if (existingAssignments.length > 0) {
+    // Show assignments and allow removal
+    let message = `${employeeName} on ${dateStr}:\n\n`;
+    existingAssignments.forEach(a => {
+      const job = allJobs.find(j => j.id === a.job_id);
+      if (job) {
+        message += `• ${job.client_name} - ${job.address}\n`;
+      }
+    });
+    message += '\nClick "Assign New Job" to add another job, or "Remove Assignment" to unassign.';
+
+    const choice = prompt(message + '\n\nEnter:\n- "add" to assign new job\n- "remove" to remove assignment\n- "cancel" to close', 'cancel');
+
+    if (choice === 'remove' && existingAssignments.length > 0) {
+      // Remove date from first assignment
+      const assignment = existingAssignments[0];
+      const dates = JSON.parse(assignment.assigned_dates || '[]');
+      const updatedDates = dates.filter(d => d !== dateStr);
+
+      try {
+        const response = await fetch(`/api/jobs/${assignment.job_id}/assign/${employeeId}/dates`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dates: updatedDates })
+        });
+
+        if (response.ok) {
+          await loadCalendar();
+          alert('Assignment removed successfully');
+        }
+      } catch (error) {
+        console.error('Error removing assignment:', error);
+        alert('Failed to remove assignment');
+      }
+      return;
+    } else if (choice !== 'add') {
+      return;
+    }
+  }
+
+  // Show job selection modal
+  const activeJobs = allJobs.filter(j => j.status !== 'completed');
+  if (activeJobs.length === 0) {
+    alert('No active jobs available. Create a job first.');
+    return;
+  }
+
+  let jobOptions = 'Select a job to assign:\n\n';
+  activeJobs.forEach((job, idx) => {
+    jobOptions += `${idx + 1}. ${job.client_name} - ${job.address}\n`;
+  });
+
+  const jobChoice = prompt(jobOptions + '\nEnter job number:', '1');
+  if (!jobChoice) return;
+
+  const jobIndex = parseInt(jobChoice) - 1;
+  if (jobIndex < 0 || jobIndex >= activeJobs.length) {
+    alert('Invalid job number');
+    return;
+  }
+
+  const selectedJob = activeJobs[jobIndex];
+
+  // Check if employee is already assigned to this job
+  let existingAssignment = calendarAssignments.find(a =>
+    a.job_id === selectedJob.id && a.employee_id === employeeId
+  );
+
+  let updatedDates = [];
+  if (existingAssignment) {
+    // Add date to existing assignment
+    updatedDates = JSON.parse(existingAssignment.assigned_dates || '[]');
+    if (!updatedDates.includes(dateStr)) {
+      updatedDates.push(dateStr);
+      updatedDates.sort(); // Keep dates sorted
+    }
+  } else {
+    // Create new assignment
+    updatedDates = [dateStr];
+
+    // First assign employee to job
+    try {
+      const response = await fetch(`/api/jobs/${selectedJob.id}/assign/${employeeId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to assign employee to job');
+      }
+    } catch (error) {
+      console.error('Error assigning employee:', error);
+      alert('Failed to assign employee to job');
+      return;
+    }
+  }
+
+  // Update dates
+  try {
+    const response = await fetch(`/api/jobs/${selectedJob.id}/assign/${employeeId}/dates`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dates: updatedDates })
+    });
+
+    if (response.ok) {
+      await loadCalendar();
+
+      // Check for conflicts and warn
+      const conflicts = detectConflicts(calendarAssignments);
+      const conflictKey = `${employeeId}_${dateStr}`;
+      if (conflicts[conflictKey] && conflicts[conflictKey].length > 1) {
+        alert(`⚠️ WARNING: ${employeeName} is now assigned to ${conflicts[conflictKey].length} jobs on ${dateStr}`);
+      } else {
+        alert('Assignment successful!');
+      }
+    }
+  } catch (error) {
+    console.error('Error updating assignment dates:', error);
+    alert('Failed to update assignment dates');
+  }
+}
+
+// Calendar navigation functions
+function calendarToday() {
+  currentCalendarWeek = new Date();
+  renderCalendar();
+}
+
+function calendarPrevWeek() {
+  currentCalendarWeek.setDate(currentCalendarWeek.getDate() - 7);
+  renderCalendar();
+}
+
+function calendarNextWeek() {
+  currentCalendarWeek.setDate(currentCalendarWeek.getDate() + 7);
+  renderCalendar();
+}
+
+// Load calendar when tab is switched
+const originalSwitchTab = switchTab;
+window.switchTab = function(tabName) {
+  originalSwitchTab(tabName);
+  if (tabName === 'calendar') {
+    loadCalendar();
+  }
+};
+
+// ============================================================
+// AUTO-RATING ADJUSTMENT SYSTEM
+// ============================================================
+
+// Analyze employee performance and suggest rating adjustments
+async function analyzeEmployeePerformance(employeeId, jobId) {
+  try {
+    // Get all tasks completed by this employee on this job
+    const tasksRes = await fetch(`/api/jobs/${jobId}/tasks`);
+    const allTasks = await tasksRes.json();
+
+    const employeeTasks = allTasks.filter(t => t.completed_by === employeeId && t.completed);
+
+    if (employeeTasks.length === 0) {
+      return null;
+    }
+
+    // Get employee data
+    const empRes = await fetch(`/api/employees/${employeeId}`);
+    const employee = await empRes.json();
+
+    // Calculate expected vs actual performance
+    const baseEfficiency = employee.type === 'brush_hand' ? 0.667 : 1.0;
+    const currentRating = employee.rating || 1.0;
+    const expectedEfficiency = baseEfficiency * currentRating;
+
+    // Count unique days worked
+    const workDates = new Set(employeeTasks.map(t => t.completion_date));
+    const daysWorked = workDates.size;
+
+    // Calculate tasks completed per day
+    const tasksPerDay = employeeTasks.length / daysWorked;
+
+    // Get average tasks per day across all employees on this job
+    const avgTasksPerDay = await getAverageTasksPerDay(jobId);
+
+    // Calculate performance ratio
+    const performanceRatio = avgTasksPerDay > 0 ? tasksPerDay / avgTasksPerDay : 1.0;
+
+    // Suggest rating adjustment
+    let suggestedRating = currentRating;
+    let note = '';
+
+    if (performanceRatio > 1.2) {
+      // Exceptional performance - increase rating by 0.1
+      suggestedRating = Math.min(3.0, currentRating + 0.1);
+      note = `Excellent performance on job ${jobId}: ${tasksPerDay.toFixed(1)} tasks/day (${(performanceRatio * 100).toFixed(0)}% above average)`;
+    } else if (performanceRatio < 0.8) {
+      // Below average performance - decrease rating by 0.1
+      suggestedRating = Math.max(0.1, currentRating - 0.1);
+      note = `Needs improvement on job ${jobId}: ${tasksPerDay.toFixed(1)} tasks/day (${(100 - performanceRatio * 100).toFixed(0)}% below average)`;
+    } else {
+      // Average performance - no change
+      note = `Consistent performance on job ${jobId}: ${tasksPerDay.toFixed(1)} tasks/day`;
+    }
+
+    return {
+      employeeId,
+      employeeName: employee.name,
+      currentRating,
+      suggestedRating,
+      performanceRatio,
+      tasksCompleted: employeeTasks.length,
+      daysWorked,
+      tasksPerDay,
+      note
+    };
+  } catch (error) {
+    console.error('Error analyzing employee performance:', error);
+    return null;
+  }
+}
+
+// Calculate average tasks per day across all employees on a job
+async function getAverageTasksPerDay(jobId) {
+  try {
+    const tasksRes = await fetch(`/api/jobs/${jobId}/tasks`);
+    const allTasks = await tasksRes.json();
+
+    if (allTasks.length === 0) return 0;
+
+    // Group by employee
+    const employeeStats = {};
+    allTasks.forEach(task => {
+      if (!task.completed || !task.completed_by) return;
+
+      if (!employeeStats[task.completed_by]) {
+        employeeStats[task.completed_by] = {
+          tasks: 0,
+          dates: new Set()
+        };
+      }
+
+      employeeStats[task.completed_by].tasks++;
+      if (task.completion_date) {
+        employeeStats[task.completed_by].dates.add(task.completion_date);
+      }
+    });
+
+    // Calculate average tasks per day
+    let totalTasksPerDay = 0;
+    let employeeCount = 0;
+
+    Object.values(employeeStats).forEach(stats => {
+      if (stats.dates.size > 0) {
+        totalTasksPerDay += stats.tasks / stats.dates.size;
+        employeeCount++;
+      }
+    });
+
+    return employeeCount > 0 ? totalTasksPerDay / employeeCount : 0;
+  } catch (error) {
+    console.error('Error calculating average tasks per day:', error);
+    return 0;
+  }
+}
+
+// Apply rating adjustment to employee
+async function applyRatingAdjustment(analysis) {
+  if (!analysis) return;
+
+  const confirmed = confirm(
+    `Performance Analysis for ${analysis.employeeName}:\n\n` +
+    `Current Rating: ${analysis.currentRating.toFixed(1)}x\n` +
+    `Suggested Rating: ${analysis.suggestedRating.toFixed(1)}x\n\n` +
+    `Performance: ${(analysis.performanceRatio * 100).toFixed(0)}% of average\n` +
+    `Tasks Completed: ${analysis.tasksCompleted} over ${analysis.daysWorked} days\n` +
+    `Rate: ${analysis.tasksPerDay.toFixed(1)} tasks/day\n\n` +
+    `Note: ${analysis.note}\n\n` +
+    `Apply this rating adjustment?`
+  );
+
+  if (!confirmed) return;
+
+  try {
+    // Get employee data
+    const empRes = await fetch(`/api/employees/${analysis.employeeId}`);
+    const employee = await empRes.json();
+
+    // Add note to rating notes
+    const ratingNotes = JSON.parse(employee.rating_notes || '[]');
+    ratingNotes.push({
+      date: formatDate(new Date()),
+      oldRating: analysis.currentRating,
+      newRating: analysis.suggestedRating,
+      note: analysis.note
+    });
+
+    // Update employee rating
+    await fetch(`/api/employees/${analysis.employeeId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...employee,
+        rating: analysis.suggestedRating,
+        rating_notes: ratingNotes
+      })
+    });
+
+    alert(`Rating updated successfully!\n${employee.name}: ${analysis.currentRating.toFixed(1)}x → ${analysis.suggestedRating.toFixed(1)}x`);
+
+    // Reload employees to show updated rating
+    loadEmployees();
+    loadJobs(); // Reload jobs to update predicted hours
+  } catch (error) {
+    console.error('Error applying rating adjustment:', error);
+    alert('Failed to apply rating adjustment');
+  }
+}
+
+// End of day performance review for a job
+async function endOfDayReview(jobId) {
+  try {
+    // Get all employees who worked today on this job
+    const today = formatDate(new Date());
+
+    const tasksRes = await fetch(`/api/jobs/${jobId}/tasks`);
+    const allTasks = await tasksRes.json();
+
+    const todaysTasks = allTasks.filter(t => t.completion_date === today && t.completed);
+
+    if (todaysTasks.length === 0) {
+      alert('No tasks completed today on this job.');
+      return;
+    }
+
+    // Get unique employees who worked today
+    const employeeIds = [...new Set(todaysTasks.map(t => t.completed_by))];
+
+    let reviewMessage = `End of Day Review - ${today}\n\n`;
+    reviewMessage += `Tasks completed today: ${todaysTasks.length}\n`;
+    reviewMessage += `Employees who worked: ${employeeIds.length}\n\n`;
+
+    // Analyze each employee
+    for (const empId of employeeIds) {
+      const analysis = await analyzeEmployeePerformance(empId, jobId);
+      if (analysis) {
+        reviewMessage += `${analysis.employeeName}: ${analysis.tasksCompleted} tasks total, ${analysis.tasksPerDay.toFixed(1)} per day\n`;
+
+        // Auto-suggest rating if significant change
+        if (Math.abs(analysis.suggestedRating - analysis.currentRating) >= 0.1) {
+          await applyRatingAdjustment(analysis);
+        }
+      }
+    }
+
+    alert(reviewMessage);
+  } catch (error) {
+    console.error('Error in end of day review:', error);
+    alert('Failed to complete end of day review');
+  }
+}
+
+// Add End of Day Review button to job cards (called from displayJobs)
+function addEndOfDayReviewButton(jobId) {
+  return `<button class="btn btn-secondary btn-sm" onclick="endOfDayReview(${jobId})" title="Review today's performance and adjust ratings">📊 Day Review</button>`;
+}

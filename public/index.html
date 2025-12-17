@@ -17,6 +17,7 @@
       <button class="tab-btn active" data-tab="jobs">Jobs</button>
       <button class="tab-btn" data-tab="employees">Employees</button>
       <button class="tab-btn" data-tab="estimator">Estimator</button>
+      <button class="tab-btn" data-tab="calendar">Calendar</button>
     </div>
 
     <!-- JOBS TAB -->
@@ -105,6 +106,39 @@
               <button class="btn btn-success" onclick="createJobFromEstimate()">✅ Create Job from Estimate</button>
               <button class="btn btn-email" onclick="emailQuote()">📧 Request Quote</button>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CALENDAR TAB -->
+    <div id="calendar-tab" class="tab-content">
+      <div class="section-header">
+        <h2>📅 Job Calendar</h2>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+          <button class="btn btn-secondary" onclick="calendarToday()">Today</button>
+          <button class="btn btn-secondary" onclick="calendarPrevWeek()">← Prev Week</button>
+          <button class="btn btn-secondary" onclick="calendarNextWeek()">Next Week →</button>
+        </div>
+      </div>
+
+      <div id="calendar-view" style="margin-top: 1rem;">
+        <div class="calendar-header">
+          <h3 id="calendar-week-label" style="text-align: center; margin-bottom: 1rem;"></h3>
+        </div>
+        <div id="calendar-grid" class="calendar-grid"></div>
+      </div>
+
+      <div style="margin-top: 2rem;">
+        <h3>Legend</h3>
+        <div style="display: flex; gap: 2rem; flex-wrap: wrap; margin-top: 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <div style="width: 20px; height: 20px; background: #e3f2fd; border: 2px solid #2196f3; border-radius: 4px;"></div>
+            <span>Assigned</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <div style="width: 20px; height: 20px; background: #fff9c4; border: 2px solid #ffc107; border-radius: 4px;"></div>
+            <span>Conflict</span>
           </div>
         </div>
       </div>
