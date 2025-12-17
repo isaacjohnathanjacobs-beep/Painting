@@ -2091,13 +2091,18 @@ function generateProfessionalTaskList() {
   let taskId = 1;
 
   // Calculate total estimate for percentage weights
-  const totalEstimate = rooms.reduce((sum, r) => sum + calcRoom(r), 0) +
-                        exteriors.reduce((sum, e) => sum + calcExt(e), 0);
+  const interiorEstimate = rooms.reduce((sum, r) => sum + calcRoom(r), 0);
+  const exteriorEstimate = exteriors.reduce((sum, e) => sum + calcExt(e), 0);
+  const totalEstimate = interiorEstimate + exteriorEstimate;
+
+  // Calculate interior vs exterior split for percentage allocation
+  const interiorPct = totalEstimate > 0 ? interiorEstimate / totalEstimate : 1;
+  const exteriorPct = totalEstimate > 0 ? exteriorEstimate / totalEstimate : 0;
 
   // Check if any room has wallpaper removal
   const hasWallpaperRemoval = rooms.some(r => r.selectedTasks['Remove wallpaper']);
 
-  // PHASE 1: GLOBAL SETUP (5% of job)
+  // PHASE 1: GLOBAL SETUP (5% of job - covers both interior and exterior)
   const setupWeight = 5;
   tasks.push({
     id: taskId++,
@@ -2147,10 +2152,10 @@ function generateProfessionalTaskList() {
 
   const setupEndId = taskId - 1;
 
-  // PHASE 2: GLOBAL PREP (ALL ROOMS - 30% of job)
+  // PHASE 2: INTERIOR PREP (30% of interior portion)
   // Tasks are done sequentially ACROSS all rooms (not room-by-room)
-  const prepWeight = 30;
-  const prepWeightPerRoom = rooms.length > 0 ? prepWeight / rooms.length : 0;
+  const interiorPrepWeight = 30 * interiorPct;
+  const prepWeightPerRoom = rooms.length > 0 ? interiorPrepWeight / rooms.length : 0;
 
   // Filter out rooms with no tasks
   const validRooms = rooms.filter(r => calcRoom(r) > 0).map((room, index) => ({
@@ -2326,10 +2331,10 @@ function generateProfessionalTaskList() {
 
   const paintStartId = taskId;
 
-  // PHASE 3: PAINTING (55% of job)
+  // PHASE 3: INTERIOR PAINTING (55% of interior portion)
   // Paint order: Skirting → Windows → Ceilings → Walls → Doors → Cabinets
   // Tasks are done sequentially ACROSS all rooms
-  const paintWeight = 55;
+  const interiorPaintWeight = 55 * interiorPct;
 
   // Calculate surface distribution
   const surfaceCount = {
@@ -2351,7 +2356,7 @@ function generateProfessionalTaskList() {
   });
 
   const totalSurfaces = Object.values(surfaceCount).reduce((a, b) => a + b, 0);
-  const weightPerSurface = totalSurfaces > 0 ? paintWeight / totalSurfaces : 0;
+  const weightPerSurface = totalSurfaces > 0 ? interiorPaintWeight / totalSurfaces : 0;
 
   // Helper to paint a surface across all rooms sequentially
   const paintSurfaceAcrossRooms = (surfaceType, surfaceName, getColor) => {
@@ -2580,10 +2585,9 @@ function generateProfessionalTaskList() {
   let lastExteriorTaskId = paintEndId;
 
   if (validExteriors.length > 0) {
-    const exteriorWeight = totalEstimate > 0 ?
-      (exteriors.reduce((sum, e) => sum + calcExt(e), 0) / totalEstimate) * 100 : 0;
-    const exteriorPrepWeight = exteriorWeight * 0.35; // 35% for prep
-    const exteriorPaintWeight = exteriorWeight * 0.65; // 65% for painting
+    // Exterior gets 30% of its portion for prep, 55% for painting (matching interior proportions)
+    const exteriorPrepWeight = 30 * exteriorPct;
+    const exteriorPaintWeight = 55 * exteriorPct;
 
     // EXTERIOR PREP PHASE
     const prepWeightPerExterior = validExteriors.length > 0 ? exteriorPrepWeight / validExteriors.length : exteriorPrepWeight;
@@ -2657,13 +2661,87 @@ function generateProfessionalTaskList() {
             const colorInfo = surface.color && surface.color !== 'Choose colour' ? ` (${surface.color})` : '';
             const numCoats = parseInt(ext.coats) || 2;
 
-            for (let coat = 1; coat <= numCoats; coat++) {
+            // Coat 1
+            tasks.push({
+              id: taskId++,
+              phase: 'painting',
+              task: `${surface.name} - Coat 1${colorInfo}`,
+              completed: false,
+              percentage: (paintWeightPerExterior * surface.weight) * 0.4,
+              dependencies: [lastExteriorTaskId],
+              room: ext.extName
+            });
+            lastExteriorTaskId = taskId - 1;
+
+            // Sanding between coats
+            tasks.push({
+              id: taskId++,
+              phase: 'painting',
+              task: `${surface.name} - Light sanding between coats`,
+              completed: false,
+              percentage: (paintWeightPerExterior * surface.weight) * 0.1,
+              dependencies: [lastExteriorTaskId],
+              room: ext.extName
+            });
+            lastExteriorTaskId = taskId - 1;
+
+            // Dust removal
+            tasks.push({
+              id: taskId++,
+              phase: 'painting',
+              task: `${surface.name} - Dust removal`,
+              completed: false,
+              percentage: (paintWeightPerExterior * surface.weight) * 0.1,
+              dependencies: [lastExteriorTaskId],
+              room: ext.extName
+            });
+            lastExteriorTaskId = taskId - 1;
+
+            // Coat 2 (or final coat)
+            tasks.push({
+              id: taskId++,
+              phase: 'painting',
+              task: `${surface.name} - Coat ${numCoats} (final)${colorInfo}`,
+              completed: false,
+              percentage: (paintWeightPerExterior * surface.weight) * 0.4,
+              dependencies: [lastExteriorTaskId],
+              room: ext.extName
+            });
+            lastExteriorTaskId = taskId - 1;
+
+            // If 3 coats, add another cycle
+            if (numCoats === 3) {
+              // Sanding
               tasks.push({
                 id: taskId++,
                 phase: 'painting',
-                task: `${surface.name} - Coat ${coat}${colorInfo}`,
+                task: `${surface.name} - Light sanding between coats`,
                 completed: false,
-                percentage: (paintWeightPerExterior * surface.weight) / numCoats,
+                percentage: (paintWeightPerExterior * surface.weight) * 0.05,
+                dependencies: [lastExteriorTaskId],
+                room: ext.extName
+              });
+              lastExteriorTaskId = taskId - 1;
+
+              // Dust removal
+              tasks.push({
+                id: taskId++,
+                phase: 'painting',
+                task: `${surface.name} - Dust removal`,
+                completed: false,
+                percentage: (paintWeightPerExterior * surface.weight) * 0.05,
+                dependencies: [lastExteriorTaskId],
+                room: ext.extName
+              });
+              lastExteriorTaskId = taskId - 1;
+
+              // Final coat (coat 3)
+              tasks.push({
+                id: taskId++,
+                phase: 'painting',
+                task: `${surface.name} - Coat 3 (final)${colorInfo}`,
+                completed: false,
+                percentage: (paintWeightPerExterior * surface.weight) * 0.2,
                 dependencies: [lastExteriorTaskId],
                 room: ext.extName
               });
@@ -2672,35 +2750,107 @@ function generateProfessionalTaskList() {
           }
         });
       } else if (ext.type === 'Deck') {
+        const numCoats = parseInt(ext.coats) || 2;
+
         if (ext.selectedTasks['Stain/oil deck']) {
-          const numCoats = parseInt(ext.coats) || 2;
-          for (let coat = 1; coat <= numCoats; coat++) {
-            tasks.push({
-              id: taskId++,
-              phase: 'painting',
-              task: `Stain/Oil Deck - Coat ${coat}`,
-              completed: false,
-              percentage: paintWeightPerExterior / numCoats,
-              dependencies: [lastExteriorTaskId],
-              room: ext.extName
-            });
-            lastExteriorTaskId = taskId - 1;
-          }
+          // Coat 1
+          tasks.push({
+            id: taskId++,
+            phase: 'painting',
+            task: `Stain/Oil Deck - Coat 1`,
+            completed: false,
+            percentage: paintWeightPerExterior * 0.4,
+            dependencies: [lastExteriorTaskId],
+            room: ext.extName
+          });
+          lastExteriorTaskId = taskId - 1;
+
+          // Light sanding
+          tasks.push({
+            id: taskId++,
+            phase: 'painting',
+            task: `Deck - Light sanding between coats`,
+            completed: false,
+            percentage: paintWeightPerExterior * 0.1,
+            dependencies: [lastExteriorTaskId],
+            room: ext.extName
+          });
+          lastExteriorTaskId = taskId - 1;
+
+          // Dust removal
+          tasks.push({
+            id: taskId++,
+            phase: 'painting',
+            task: `Deck - Dust removal`,
+            completed: false,
+            percentage: paintWeightPerExterior * 0.1,
+            dependencies: [lastExteriorTaskId],
+            room: ext.extName
+          });
+          lastExteriorTaskId = taskId - 1;
+
+          // Final coat
+          tasks.push({
+            id: taskId++,
+            phase: 'painting',
+            task: `Stain/Oil Deck - Coat ${numCoats} (final)`,
+            completed: false,
+            percentage: paintWeightPerExterior * 0.4,
+            dependencies: [lastExteriorTaskId],
+            room: ext.extName
+          });
+          lastExteriorTaskId = taskId - 1;
+
         } else if (ext.selectedTasks['Paint deck']) {
           const colorInfo = ext.deckColor && ext.deckColor !== 'Choose colour' ? ` (${ext.deckColor})` : '';
-          const numCoats = parseInt(ext.coats) || 2;
-          for (let coat = 1; coat <= numCoats; coat++) {
-            tasks.push({
-              id: taskId++,
-              phase: 'painting',
-              task: `Paint Deck - Coat ${coat}${colorInfo}`,
-              completed: false,
-              percentage: paintWeightPerExterior / numCoats,
-              dependencies: [lastExteriorTaskId],
-              room: ext.extName
-            });
-            lastExteriorTaskId = taskId - 1;
-          }
+
+          // Coat 1
+          tasks.push({
+            id: taskId++,
+            phase: 'painting',
+            task: `Paint Deck - Coat 1${colorInfo}`,
+            completed: false,
+            percentage: paintWeightPerExterior * 0.4,
+            dependencies: [lastExteriorTaskId],
+            room: ext.extName
+          });
+          lastExteriorTaskId = taskId - 1;
+
+          // Light sanding
+          tasks.push({
+            id: taskId++,
+            phase: 'painting',
+            task: `Deck - Light sanding between coats`,
+            completed: false,
+            percentage: paintWeightPerExterior * 0.1,
+            dependencies: [lastExteriorTaskId],
+            room: ext.extName
+          });
+          lastExteriorTaskId = taskId - 1;
+
+          // Dust removal
+          tasks.push({
+            id: taskId++,
+            phase: 'painting',
+            task: `Deck - Dust removal`,
+            completed: false,
+            percentage: paintWeightPerExterior * 0.1,
+            dependencies: [lastExteriorTaskId],
+            room: ext.extName
+          });
+          lastExteriorTaskId = taskId - 1;
+
+          // Final coat
+          tasks.push({
+            id: taskId++,
+            phase: 'painting',
+            task: `Paint Deck - Coat ${numCoats} (final)${colorInfo}`,
+            completed: false,
+            percentage: paintWeightPerExterior * 0.4,
+            dependencies: [lastExteriorTaskId],
+            room: ext.extName
+          });
+          lastExteriorTaskId = taskId - 1;
         }
       }
     });
