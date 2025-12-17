@@ -203,8 +203,9 @@ function calcRoom(r) {
   const floor = l * w, walls = 2 * (l + w) * h, ceil = floor, peri = 2 * (l + w);
   let p = 0;
 
-  const hMult = h >= 3.6 ? 1.4 : h >= 3 ? 1.2 : h >= 2.7 ? 1.1 : 1;
-  const rMult = {Kitchen: 1.2, Bathroom: 1.25, Laundry: 1.15}[r.type] || 1;
+  // Calculate premiums (additive, not multiplicative)
+  const hPremium = h >= 3.6 ? 0.4 : h >= 3 ? 0.2 : h >= 2.7 ? 0.1 : 0;
+  const rPremium = {Kitchen: 0.2, Bathroom: 0.25, Laundry: 0.15}[r.type] || 0;
 
   if(r.selectedTasks['Paint walls']) p += walls * 32;
   if(r.selectedTasks['Paint ceiling']) p += ceil * 36;
@@ -217,45 +218,60 @@ function calcRoom(r) {
   if(r.selectedTasks['Paint cabinets']) p += floor * 0.2 * 48;
   if(r.selectedTasks['Remove wallpaper']) p += walls * 18;
 
-  const cdMult = {excellent: 0.95, good: 1, fair: 1.3, poor: 1.7}[r.condition];
-  p *= cdMult * rMult * hMult * (r.coats === '3' ? 1.35 : 1);
+  const cdPremium = {excellent: -0.05, good: 0, fair: 0.3, poor: 0.7}[r.condition];
+  const coPremium = r.coats === '3' ? 0.35 : 0;
+
+  // Apply all premiums additively
+  p *= (1 + hPremium + rPremium + cdPremium + coPremium);
   return Math.round(p);
 }
 
 function calcExt(e) {
   let p = 0;
-  const cdMult = {excellent: 0.9, good: 1, fair: 1.35, poor: 1.8}[e.condition];
-  const coMult = e.coats === '3' ? 1.35 : 1;
-  const scMult = e.scaffolding ? 1.25 : 1;
-  const stMult = +e.height === 2 ? 1.3 : +e.height >= 3 ? 1.5 : 1;
+
+  // Calculate premiums (additive, not multiplicative)
+  const cdPremium = {excellent: -0.1, good: 0, fair: 0.35, poor: 0.8}[e.condition];
+  const coPremium = e.coats === '3' ? 0.35 : 0;
+  const scPremium = e.scaffolding ? 0.25 : 0;
+  const stPremium = +e.height === 2 ? 0.3 : +e.height >= 3 ? 0.5 : 0;
 
   if(e.type === 'House Walls') {
     const a = +e.area || 0;
     const clRates = {Weatherboard: 42, Brick: 52, 'Plaster/Stucco': 58, 'Fibre Cement': 46, 'Concrete Block': 48};
-    if(e.selectedTasks['Paint walls']) p += a * (clRates[e.cladding] || 42) * cdMult * stMult * scMult * coMult;
-    if(e.selectedTasks['Fascia/soffits']) p += a * 0.15 * 38 * cdMult * stMult;
-    if(e.selectedTasks['Gutters/downpipes']) p += a * 0.1 * 32 * cdMult * stMult;
+    if(e.selectedTasks['Paint walls']) p += a * (clRates[e.cladding] || 42);
+    if(e.selectedTasks['Fascia/soffits']) p += a * 0.15 * 38;
+    if(e.selectedTasks['Gutters/downpipes']) p += a * 0.1 * 32;
     if(e.selectedTasks['Window frames']) p += Math.ceil(a / 15) * 105;
     if(e.selectedTasks['Exterior doors']) p += 235;
   } else if(e.type === 'Deck') {
     const a = +e.deckArea || 0;
-    if(e.selectedTasks['Stain/oil deck']) p += a * 16 * cdMult * coMult;
-    if(e.selectedTasks['Paint deck']) p += a * 25 * cdMult * coMult;
-    if(e.selectedTasks['Balustrades']) p += Math.sqrt(a) * 3 * 14 * cdMult;
+    if(e.selectedTasks['Stain/oil deck']) p += a * 16;
+    if(e.selectedTasks['Paint deck']) p += a * 25;
+    if(e.selectedTasks['Balustrades']) p += Math.sqrt(a) * 3 * 14;
   } else if(e.type === 'Fence') {
     const a = +e.area || 0;
-    if(e.selectedTasks['Paint fence']) p += a * 31 * cdMult * coMult;
-    if(e.selectedTasks['Stain fence']) p += a * 19 * cdMult * coMult;
+    if(e.selectedTasks['Paint fence']) p += a * 31;
+    if(e.selectedTasks['Stain fence']) p += a * 19;
   } else if(e.type === 'Garage' || e.type === 'Shed') {
     const a = +e.area || 0;
-    if(e.selectedTasks['Paint walls']) p += a * 38 * cdMult * coMult;
-    if(e.selectedTasks['Paint trim']) p += a * 0.12 * 24 * cdMult;
+    if(e.selectedTasks['Paint walls']) p += a * 38;
+    if(e.selectedTasks['Paint trim']) p += a * 0.12 * 24;
     if(e.selectedTasks['Paint doors']) p += 160;
   } else if(e.type === 'Roof') {
     const a = +e.area || 0;
-    const roofMult = e.roofType === 'Metal' ? 1.2 : e.roofType === 'Tile' ? 1.35 : 1;
-    if(e.selectedTasks['Paint roof']) p += a * 40 * cdMult * coMult * roofMult;
+    const roofPremium = e.roofType === 'Metal' ? 0.2 : e.roofType === 'Tile' ? 0.35 : 0;
+    if(e.selectedTasks['Paint roof']) p += a * 40;
+    // Apply roof premium separately for roof jobs
+    p *= (1 + roofPremium);
   }
+
+  // Apply all premiums additively (except roof which was already applied)
+  if(e.type !== 'Roof') {
+    p *= (1 + cdPremium + coPremium + scPremium + stPremium);
+  } else {
+    p *= (1 + cdPremium + coPremium + scPremium + stPremium);
+  }
+
   return Math.round(p);
 }
 
