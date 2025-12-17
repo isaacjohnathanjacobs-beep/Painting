@@ -373,6 +373,9 @@ async function displayJobs(jobs) {
     const completedCount = checklist.filter(item => item.completed).length;
     const totalCount = checklist.length;
 
+    // Calculate predicted hours
+    const predictedHours = calculatePredictedHours(job.estimated_hours, employees);
+
     return `
       <div class="card">
         <div class="card-header">
@@ -394,6 +397,12 @@ async function displayJobs(jobs) {
             ${job.estimated_hours ? `<div class="info-item"><span class="info-label">Est. Hours:</span><span class="info-value">${job.estimated_hours}</span></div>` : ''}
             ${job.estimated_cost ? `<div class="info-item"><span class="info-label">Est. Cost:</span><span class="info-value">$${job.estimated_cost}</span></div>` : ''}
           </div>
+          ${predictedHours ? `
+            <div class="info-row" style="background: #e8f5e9; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;">
+              <div class="info-item"><span class="info-label">🎯 Predicted Hours:</span><span class="info-value" style="font-weight: 600; color: #2e7d32;">${predictedHours} hrs</span></div>
+              <div class="info-item"><span class="info-label">Team Efficiency:</span><span class="info-value">${employees.map(e => ((e.type === 'brush_hand' ? 0.667 : 1.0) * (e.rating || 1.0)).toFixed(2) + 'x').join(' + ')}</span></div>
+            </div>
+          ` : ''}
           ${materialsChecklist.length > 0 ? generateMaterialsDisplay(job.id, materialsChecklist) : ''}
           ${checklist.length > 0 ? generateProfessionalTaskDisplay(job.id, checklist) : ''}
           ${employees.length > 0 ? `
@@ -415,6 +424,27 @@ async function displayJobs(jobs) {
   }));
 
   jobsList.innerHTML = jobsHTML.join('');
+}
+
+// Calculate predicted hours based on team efficiency
+function calculatePredictedHours(estimatedHours, employees) {
+  if (!estimatedHours || employees.length === 0) {
+    return null;
+  }
+
+  // Calculate team efficiency
+  let teamEfficiency = 0;
+  employees.forEach(emp => {
+    const baseEfficiency = emp.type === 'brush_hand' ? 0.667 : 1.0;
+    const rating = emp.rating || 1.0;
+    teamEfficiency += baseEfficiency * rating;
+  });
+
+  if (teamEfficiency === 0) {
+    return null;
+  }
+
+  return (estimatedHours / teamEfficiency).toFixed(1);
 }
 
 async function getJobEmployees(jobId) {
@@ -527,6 +557,11 @@ function displayEmployees(employees) {
           ${emp.phone ? `<div class="info-item"><span class="info-label">Phone:</span><span class="info-value">${emp.phone}</span></div>` : ''}
           ${emp.hourly_rate ? `<div class="info-item"><span class="info-label">Hourly Rate:</span><span class="info-value">$${emp.hourly_rate}/hr</span></div>` : ''}
         </div>
+        <div class="info-row" style="margin-top: 0.5rem; border-top: 1px solid #eee; padding-top: 0.5rem;">
+          <div class="info-item"><span class="info-label">Type:</span><span class="info-value">${emp.type === 'brush_hand' ? 'Brush Hand (67%)' : 'Painter (100%)'}</span></div>
+          <div class="info-item"><span class="info-label">Rating:</span><span class="info-value">${emp.rating || 1.0}x</span></div>
+          <div class="info-item"><span class="info-label">Efficiency:</span><span class="info-value">${((emp.type === 'brush_hand' ? 0.667 : 1.0) * (emp.rating || 1.0)).toFixed(2)}x</span></div>
+        </div>
       </div>
       <div class="card-actions">
         <button class="btn btn-secondary btn-sm" onclick="editEmployee(${emp.id})">Edit</button>
@@ -574,6 +609,8 @@ async function loadEmployeeData(employeeId) {
     document.getElementById('employee-role').value = employee.role || '';
     document.getElementById('hourly-rate').value = employee.hourly_rate || '';
     document.getElementById('employee-status').value = employee.status || 'active';
+    document.getElementById('employee-type').value = employee.type || 'painter';
+    document.getElementById('employee-rating').value = employee.rating || 1.0;
   } catch (error) {
     console.error('Error loading employee data:', error);
   }
@@ -726,7 +763,9 @@ function setupForms() {
       phone: document.getElementById('employee-phone').value,
       role: document.getElementById('employee-role').value,
       hourly_rate: document.getElementById('hourly-rate').value || null,
-      status: document.getElementById('employee-status').value
+      status: document.getElementById('employee-status').value,
+      type: document.getElementById('employee-type').value || 'painter',
+      rating: parseFloat(document.getElementById('employee-rating').value) || 1.0
     };
 
     try {
