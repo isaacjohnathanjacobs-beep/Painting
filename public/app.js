@@ -2403,55 +2403,147 @@ function generateProfessionalTaskList() {
     });
   };
 
-  // 1. Paint skirting/coving across all rooms
-  paintSurfaceAcrossRooms(
-    'Paint skirting/coving',
-    'Skirting/Coving',
-    (room) => room.trimColor && room.trimColor !== 'Choose colour' ? room.trimColor : ''
-  );
+  // 1. Paint skirting/coving AND windows together (with sanding done together between coats)
+  const roomsWithSkirting = validRooms.filter(room => room.selectedTasks['Paint skirting/coving']);
+  const roomsWithWindows = validRooms.filter(room => room.selectedTasks['Paint windows']);
+  const hasTrimSurfaces = roomsWithSkirting.length > 0 || roomsWithWindows.length > 0;
 
-  // 2. Paint windows across all rooms
-  paintSurfaceAcrossRooms(
-    'Paint windows',
-    'Windows',
-    (room) => room.windowColor && room.windowColor !== 'Choose colour' ? room.windowColor : ''
-  );
+  if (hasTrimSurfaces) {
+    let lastTaskId = taskId - 1;
 
-  // Protect finished trim before painting ceilings/walls
-  if (surfaceCount.skirting > 0 || surfaceCount.windows > 0) {
+    // COAT 1 - Skirting/Coving for all rooms
+    roomsWithSkirting.forEach((room) => {
+      const color = room.trimColor && room.trimColor !== 'Choose colour' ? room.trimColor : '';
+      tasks.push({
+        id: taskId++,
+        phase: 'painting',
+        task: `Skirting/Coving - Coat 1${color ? ' (' + color + ')' : ''}`,
+        completed: false,
+        percentage: weightPerSurface * 0.4,
+        dependencies: [lastTaskId],
+        room: room.roomName
+      });
+      lastTaskId = taskId - 1;
+    });
+
+    // COAT 1 - Windows for all rooms
+    roomsWithWindows.forEach((room) => {
+      const color = room.windowColor && room.windowColor !== 'Choose colour' ? room.windowColor : '';
+      tasks.push({
+        id: taskId++,
+        phase: 'painting',
+        task: `Windows - Coat 1${color ? ' (' + color + ')' : ''}`,
+        completed: false,
+        percentage: weightPerSurface * 0.4,
+        dependencies: [lastTaskId],
+        room: room.roomName
+      });
+      lastTaskId = taskId - 1;
+    });
+
+    // SANDING - All trim surfaces (skirting AND windows) together
+    const roomsWithAnyTrim = [...new Set([...roomsWithSkirting, ...roomsWithWindows])];
+    roomsWithAnyTrim.forEach((room) => {
+      const surfaces = [];
+      if (room.selectedTasks['Paint skirting/coving']) surfaces.push('Skirting/Coving');
+      if (room.selectedTasks['Paint windows']) surfaces.push('Windows');
+      const surfaceList = surfaces.join(' & ');
+
+      tasks.push({
+        id: taskId++,
+        phase: 'painting',
+        task: `${surfaceList} - Light sanding between coats`,
+        completed: false,
+        percentage: weightPerSurface * 0.1,
+        dependencies: [lastTaskId],
+        room: room.roomName
+      });
+      lastTaskId = taskId - 1;
+    });
+
+    // DUST REMOVAL - All trim surfaces together
+    roomsWithAnyTrim.forEach((room) => {
+      const surfaces = [];
+      if (room.selectedTasks['Paint skirting/coving']) surfaces.push('Skirting/Coving');
+      if (room.selectedTasks['Paint windows']) surfaces.push('Windows');
+      const surfaceList = surfaces.join(' & ');
+
+      tasks.push({
+        id: taskId++,
+        phase: 'painting',
+        task: `${surfaceList} - Dust removal`,
+        completed: false,
+        percentage: weightPerSurface * 0.1,
+        dependencies: [lastTaskId],
+        room: room.roomName
+      });
+      lastTaskId = taskId - 1;
+    });
+
+    // COAT 2 - Skirting/Coving for all rooms
+    roomsWithSkirting.forEach((room) => {
+      const color = room.trimColor && room.trimColor !== 'Choose colour' ? room.trimColor : '';
+      tasks.push({
+        id: taskId++,
+        phase: 'painting',
+        task: `Skirting/Coving - Coat 2 (final)${color ? ' (' + color + ')' : ''}`,
+        completed: false,
+        percentage: weightPerSurface * 0.4,
+        dependencies: [lastTaskId],
+        room: room.roomName
+      });
+      lastTaskId = taskId - 1;
+    });
+
+    // COAT 2 - Windows for all rooms
+    roomsWithWindows.forEach((room) => {
+      const color = room.windowColor && room.windowColor !== 'Choose colour' ? room.windowColor : '';
+      tasks.push({
+        id: taskId++,
+        phase: 'painting',
+        task: `Windows - Coat 2 (final)${color ? ' (' + color + ')' : ''}`,
+        completed: false,
+        percentage: weightPerSurface * 0.4,
+        dependencies: [lastTaskId],
+        room: room.roomName
+      });
+      lastTaskId = taskId - 1;
+    });
+
+    // Protect finished trim before painting ceilings/walls
     tasks.push({
       id: taskId++,
       phase: 'painting',
       task: 'Allow trim cure time and apply low-tack masking to protect finished surfaces',
       completed: false,
       percentage: 0.5,
-      dependencies: [taskId - 1],
+      dependencies: [lastTaskId],
       room: 'All'
     });
   }
 
-  // 3. Paint ceilings across all rooms
+  // 2. Paint ceilings across all rooms
   paintSurfaceAcrossRooms(
     'Paint ceiling',
     'Ceiling',
     (room) => room.ceilingColor && room.ceilingColor !== 'Choose colour' ? room.ceilingColor : ''
   );
 
-  // 4. Paint walls across all rooms
+  // 3. Paint walls across all rooms
   paintSurfaceAcrossRooms(
     'Paint walls',
     'Walls',
     (room) => room.wallColor && room.wallColor !== 'Choose colour' ? room.wallColor : ''
   );
 
-  // 5. Paint doors across all rooms
+  // 4. Paint doors across all rooms
   paintSurfaceAcrossRooms(
     'Paint doors',
     'Doors',
     (room) => room.doorColor && room.doorColor !== 'Choose colour' ? room.doorColor : ''
   );
 
-  // 6. Paint cabinets across all rooms
+  // 5. Paint cabinets across all rooms
   paintSurfaceAcrossRooms(
     'Paint cabinets',
     'Cabinets',
@@ -2460,25 +2552,164 @@ function generateProfessionalTaskList() {
 
   const paintEndId = taskId - 1;
 
+  // EXTERIOR PAINTING (if applicable)
+  // Add exterior tasks if there are valid exterior jobs
+  const validExteriors = exteriors.filter(e => calcExt(e) > 0).map((ext, index) => ({
+    ...ext,
+    extName: ext.type === 'House Walls' ? `Exterior ${index + 1}` :
+             ext.type === 'Deck' ? `Deck ${index + 1}` : `${ext.type} ${index + 1}`,
+    extIndex: index
+  }));
+
+  let lastExteriorTaskId = paintEndId;
+
+  if (validExteriors.length > 0) {
+    const exteriorWeight = totalEstimate > 0 ?
+      (exteriors.reduce((sum, e) => sum + calcExt(e), 0) / totalEstimate) * 100 : 0;
+    const exteriorPrepWeight = exteriorWeight * 0.35; // 35% for prep
+    const exteriorPaintWeight = exteriorWeight * 0.65; // 65% for painting
+
+    // EXTERIOR PREP PHASE
+    const prepWeightPerExterior = validExteriors.length > 0 ? exteriorPrepWeight / validExteriors.length : exteriorPrepWeight;
+
+    validExteriors.forEach((ext) => {
+      // Pressure washing
+      tasks.push({
+        id: taskId++,
+        phase: 'prep',
+        task: `Pressure wash exterior surfaces`,
+        completed: false,
+        percentage: prepWeightPerExterior * 0.25,
+        dependencies: [lastExteriorTaskId],
+        room: ext.extName
+      });
+      lastExteriorTaskId = taskId - 1;
+
+      // Scraping and sanding
+      tasks.push({
+        id: taskId++,
+        phase: 'prep',
+        task: `Scrape loose paint and sand rough areas`,
+        completed: false,
+        percentage: prepWeightPerExterior * 0.3,
+        dependencies: [lastExteriorTaskId],
+        room: ext.extName
+      });
+      lastExteriorTaskId = taskId - 1;
+
+      // Repairs and filling
+      tasks.push({
+        id: taskId++,
+        phase: 'prep',
+        task: `Repair damaged areas and fill cracks`,
+        completed: false,
+        percentage: prepWeightPerExterior * 0.25,
+        dependencies: [lastExteriorTaskId],
+        room: ext.extName
+      });
+      lastExteriorTaskId = taskId - 1;
+
+      // Prime bare areas
+      tasks.push({
+        id: taskId++,
+        phase: 'prep',
+        task: `Prime bare areas and repairs`,
+        completed: false,
+        percentage: prepWeightPerExterior * 0.2,
+        dependencies: [lastExteriorTaskId],
+        room: ext.extName
+      });
+      lastExteriorTaskId = taskId - 1;
+    });
+
+    // EXTERIOR PAINTING PHASE
+    const paintWeightPerExterior = validExteriors.length > 0 ? exteriorPaintWeight / validExteriors.length : exteriorPaintWeight;
+
+    validExteriors.forEach((ext) => {
+      if (ext.type === 'House Walls') {
+        // Paint in order: Fascia/soffits → Gutters → Walls → Windows → Doors
+        const surfaces = [
+          { task: 'Fascia/soffits', name: 'Fascia/Soffits', color: ext.fasciaColor, weight: 0.15 },
+          { task: 'Gutters/downpipes', name: 'Gutters/Downpipes', color: ext.gutterColor, weight: 0.15 },
+          { task: 'Paint walls', name: 'Walls', color: ext.wallColor, weight: 0.5 },
+          { task: 'Window frames', name: 'Window Frames', color: ext.windowColor, weight: 0.1 },
+          { task: 'Exterior doors', name: 'Doors', color: ext.doorColor, weight: 0.1 }
+        ];
+
+        surfaces.forEach((surface) => {
+          if (ext.selectedTasks[surface.task]) {
+            const colorInfo = surface.color && surface.color !== 'Choose colour' ? ` (${surface.color})` : '';
+            const numCoats = parseInt(ext.coats) || 2;
+
+            for (let coat = 1; coat <= numCoats; coat++) {
+              tasks.push({
+                id: taskId++,
+                phase: 'painting',
+                task: `${surface.name} - Coat ${coat}${colorInfo}`,
+                completed: false,
+                percentage: (paintWeightPerExterior * surface.weight) / numCoats,
+                dependencies: [lastExteriorTaskId],
+                room: ext.extName
+              });
+              lastExteriorTaskId = taskId - 1;
+            }
+          }
+        });
+      } else if (ext.type === 'Deck') {
+        if (ext.selectedTasks['Stain/oil deck']) {
+          const numCoats = parseInt(ext.coats) || 2;
+          for (let coat = 1; coat <= numCoats; coat++) {
+            tasks.push({
+              id: taskId++,
+              phase: 'painting',
+              task: `Stain/Oil Deck - Coat ${coat}`,
+              completed: false,
+              percentage: paintWeightPerExterior / numCoats,
+              dependencies: [lastExteriorTaskId],
+              room: ext.extName
+            });
+            lastExteriorTaskId = taskId - 1;
+          }
+        } else if (ext.selectedTasks['Paint deck']) {
+          const colorInfo = ext.deckColor && ext.deckColor !== 'Choose colour' ? ` (${ext.deckColor})` : '';
+          const numCoats = parseInt(ext.coats) || 2;
+          for (let coat = 1; coat <= numCoats; coat++) {
+            tasks.push({
+              id: taskId++,
+              phase: 'painting',
+              task: `Paint Deck - Coat ${coat}${colorInfo}`,
+              completed: false,
+              percentage: paintWeightPerExterior / numCoats,
+              dependencies: [lastExteriorTaskId],
+              room: ext.extName
+            });
+            lastExteriorTaskId = taskId - 1;
+          }
+        }
+      }
+    });
+  }
+
   // PHASE 4: QA AND COMPLETION (10% of job)
-  // Tasks done sequentially across all rooms
+  // Tasks done sequentially across all rooms AND exteriors
   const qaWeight = 10;
-  const qaWeightPerRoom = validRooms.length > 0 ? qaWeight / validRooms.length : qaWeight;
+  const totalAreas = validRooms.length + validExteriors.length;
+  const qaWeightPerArea = totalAreas > 0 ? qaWeight / totalAreas : qaWeight;
 
-  let lastRemoveMaskingId = paintEndId;
-  let lastInspectionId = paintEndId;
-  let lastTouchUpId = paintEndId;
-  let lastCleanId = paintEndId;
-  let lastSignOffId = paintEndId;
+  let lastRemoveMaskingId = lastExteriorTaskId;
+  let lastInspectionId = lastExteriorTaskId;
+  let lastTouchUpId = lastExteriorTaskId;
+  let lastCleanId = lastExteriorTaskId;
+  let lastSignOffId = lastExteriorTaskId;
 
-  // Step 1: Remove masking and protection from all rooms
+  // Step 1: Remove masking and protection from all rooms and exteriors
   validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'qa',
       task: `Remove masking and protection`,
       completed: false,
-      percentage: qaWeightPerRoom * 0.2,
+      percentage: qaWeightPerArea * 0.2,
       dependencies: [lastRemoveMaskingId],
       room: room.roomName
     });
@@ -2486,14 +2717,28 @@ function generateProfessionalTaskList() {
     lastInspectionId = taskId - 1;
   });
 
-  // Step 2: Final defect inspection in all rooms
+  validExteriors.forEach((ext) => {
+    tasks.push({
+      id: taskId++,
+      phase: 'qa',
+      task: `Remove masking and protection`,
+      completed: false,
+      percentage: qaWeightPerArea * 0.2,
+      dependencies: [lastRemoveMaskingId],
+      room: ext.extName
+    });
+    lastRemoveMaskingId = taskId - 1;
+    lastInspectionId = taskId - 1;
+  });
+
+  // Step 2: Final defect inspection in all areas
   validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'qa',
       task: `Final defect inspection`,
       completed: false,
-      percentage: qaWeightPerRoom * 0.3,
+      percentage: qaWeightPerArea * 0.3,
       dependencies: [lastInspectionId],
       room: room.roomName
     });
@@ -2501,14 +2746,28 @@ function generateProfessionalTaskList() {
     lastTouchUpId = taskId - 1;
   });
 
-  // Step 3: Touch-ups if required in all rooms
+  validExteriors.forEach((ext) => {
+    tasks.push({
+      id: taskId++,
+      phase: 'qa',
+      task: `Final defect inspection`,
+      completed: false,
+      percentage: qaWeightPerArea * 0.3,
+      dependencies: [lastInspectionId],
+      room: ext.extName
+    });
+    lastInspectionId = taskId - 1;
+    lastTouchUpId = taskId - 1;
+  });
+
+  // Step 3: Touch-ups if required in all areas
   validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'qa',
       task: `Touch-ups if required`,
       completed: false,
-      percentage: qaWeightPerRoom * 0.3,
+      percentage: qaWeightPerArea * 0.3,
       dependencies: [lastTouchUpId],
       room: room.roomName
     });
@@ -2516,14 +2775,28 @@ function generateProfessionalTaskList() {
     lastCleanId = taskId - 1;
   });
 
-  // Step 4: Clean all rooms
+  validExteriors.forEach((ext) => {
+    tasks.push({
+      id: taskId++,
+      phase: 'qa',
+      task: `Touch-ups if required`,
+      completed: false,
+      percentage: qaWeightPerArea * 0.3,
+      dependencies: [lastTouchUpId],
+      room: ext.extName
+    });
+    lastTouchUpId = taskId - 1;
+    lastCleanId = taskId - 1;
+  });
+
+  // Step 4: Clean all areas
   validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'qa',
-      task: `Clean room`,
+      task: `Clean area`,
       completed: false,
-      percentage: qaWeightPerRoom * 0.1,
+      percentage: qaWeightPerArea * 0.1,
       dependencies: [lastCleanId],
       room: room.roomName
     });
@@ -2531,25 +2804,54 @@ function generateProfessionalTaskList() {
     lastSignOffId = taskId - 1;
   });
 
-  // Step 5: Room sign-off for all rooms
+  validExteriors.forEach((ext) => {
+    tasks.push({
+      id: taskId++,
+      phase: 'qa',
+      task: `Clean area`,
+      completed: false,
+      percentage: qaWeightPerArea * 0.1,
+      dependencies: [lastCleanId],
+      room: ext.extName
+    });
+    lastCleanId = taskId - 1;
+    lastSignOffId = taskId - 1;
+  });
+
+  // Step 5: Area sign-off for all areas
   validRooms.forEach((room) => {
     tasks.push({
       id: taskId++,
       phase: 'qa',
-      task: `Room sign-off`,
+      task: `Area sign-off`,
       completed: false,
-      percentage: qaWeightPerRoom * 0.1,
+      percentage: qaWeightPerArea * 0.1,
       dependencies: [lastSignOffId],
       room: room.roomName
     });
     lastSignOffId = taskId - 1;
   });
 
+  validExteriors.forEach((ext) => {
+    tasks.push({
+      id: taskId++,
+      phase: 'qa',
+      task: `Area sign-off`,
+      completed: false,
+      percentage: qaWeightPerArea * 0.1,
+      dependencies: [lastSignOffId],
+      room: ext.extName
+    });
+    lastSignOffId = taskId - 1;
+  });
+
   // FINAL SIGN-OFF
+  const finalMessage = validRooms.length > 0 && validExteriors.length > 0 ? 'all areas' :
+                       validRooms.length > 0 ? 'all rooms' : 'all exterior areas';
   tasks.push({
     id: taskId++,
     phase: 'completion',
-    task: '✓ Confirm all rooms approved',
+    task: `✓ Confirm ${finalMessage} approved`,
     completed: false,
     percentage: 0,
     dependencies: [lastSignOffId],
@@ -2806,6 +3108,151 @@ function generateMaterialsChecklist() {
       { id: itemId++, name: 'Spare paint for touch-ups', quantity: '10% of each color', notes: 'Retained for future touch-ups', checked: false }
     ]
   });
+
+  // EXTERIOR-SPECIFIC MATERIALS (if applicable)
+  const validExteriors = exteriors.filter(e => calcExt(e) > 0);
+  if (validExteriors.length > 0) {
+    // Calculate exterior totals
+    let totalExteriorArea = 0;
+    let hasHouseWalls = false;
+    let hasDecks = false;
+    validExteriors.forEach(ext => {
+      const area = parseFloat(ext.area) || 0;
+      totalExteriorArea += area;
+      if (ext.type === 'House Walls') hasHouseWalls = true;
+      if (ext.type === 'Deck') hasDecks = true;
+    });
+
+    // EXTERIOR PREP EQUIPMENT
+    const exteriorPrepItems = [];
+    exteriorPrepItems.push({ id: itemId++, name: 'Pressure washer (electric or gas)', quantity: '1', notes: 'For cleaning exterior surfaces', checked: false });
+    exteriorPrepItems.push({ id: itemId++, name: 'Pressure washer nozzles (various angles)', quantity: '1 set', notes: 'Different spray patterns', checked: false });
+    exteriorPrepItems.push({ id: itemId++, name: 'Garden hose and connections', quantity: '1 set', notes: 'For water supply', checked: false });
+    exteriorPrepItems.push({ id: itemId++, name: 'Paint scrapers (wide blade)', quantity: '2-3', notes: 'For removing loose paint', checked: false });
+    exteriorPrepItems.push({ id: itemId++, name: 'Wire brushes', quantity: '2-3', notes: 'For rust and loose paint removal', checked: false });
+    exteriorPrepItems.push({ id: itemId++, name: 'Exterior-grade sandpaper (coarse-medium)', quantity: Math.ceil(validExteriors.length * 2) + ' packs', notes: 'For surface prep', checked: false });
+    exteriorPrepItems.push({ id: itemId++, name: 'Safety goggles', quantity: '2-3 pairs', notes: 'For pressure washing safety', checked: false });
+
+    materials.push({
+      category: 'Exterior Prep Equipment',
+      items: exteriorPrepItems
+    });
+
+    // EXTERIOR ACCESS EQUIPMENT
+    const accessItems = [];
+    if (hasHouseWalls) {
+      accessItems.push({ id: itemId++, name: 'Extension ladders', quantity: '1-2', notes: 'For high exterior walls', checked: false });
+      accessItems.push({ id: itemId++, name: 'Ladder stabilizers', quantity: '1 set', notes: 'For ladder safety', checked: false });
+      accessItems.push({ id: itemId++, name: 'Scaffolding (if needed for multi-story)', quantity: 'As required', notes: 'For safe access to high areas', checked: false });
+    }
+    accessItems.push({ id: itemId++, name: 'Step ladders (exterior)', quantity: '1-2', notes: 'For lower areas and decks', checked: false });
+
+    materials.push({
+      category: 'Exterior Access Equipment',
+      items: accessItems
+    });
+
+    // EXTERIOR REPAIR MATERIALS
+    const exteriorRepairItems = [];
+    exteriorRepairItems.push({ id: itemId++, name: 'Exterior wood filler / epoxy', quantity: Math.ceil(validExteriors.length / 2) + ' tubs', notes: 'For wood repairs', checked: false });
+    exteriorRepairItems.push({ id: itemId++, name: 'Exterior-grade caulk (paintable)', quantity: Math.ceil(validExteriors.length) + ' tubes', notes: 'For gaps and cracks', checked: false });
+    exteriorRepairItems.push({ id: itemId++, name: 'Caulking gun (heavy-duty)', quantity: '1-2', notes: 'For exterior caulk application', checked: false });
+    exteriorRepairItems.push({ id: itemId++, name: 'Rust converter (if metal surfaces)', quantity: '1-2 bottles', notes: 'For treating rusted areas', checked: false });
+
+    materials.push({
+      category: 'Exterior Repair Materials',
+      items: exteriorRepairItems
+    });
+
+    // EXTERIOR PAINT & COATINGS
+    const exteriorPaintItems = [];
+
+    // Exterior primer
+    const exteriorPrimerQty = Math.ceil(totalExteriorArea * 0.15); // Coverage varies by surface
+    exteriorPaintItems.push({
+      id: itemId++,
+      name: 'Exterior primer/sealer (Resene system)',
+      quantity: exteriorPrimerQty + 'L',
+      notes: 'For bare wood and repairs',
+      checked: false
+    });
+
+    // Exterior paint for house walls
+    if (hasHouseWalls) {
+      const houseWalls = validExteriors.filter(e => e.type === 'House Walls');
+      const houseArea = houseWalls.reduce((sum, e) => sum + (parseFloat(e.area) || 0), 0);
+      const avgExteriorCoats = houseWalls.reduce((sum, e) => sum + (parseFloat(e.coats) || 2), 0) / houseWalls.length;
+
+      // Wall paint
+      const wallPaintQty = Math.ceil(houseArea * avgExteriorCoats * 0.15);
+      exteriorPaintItems.push({
+        id: itemId++,
+        name: 'Exterior wall paint (Resene system)',
+        quantity: wallPaintQty + 'L',
+        notes: `For ${houseWalls.length} exterior area(s), ${avgExteriorCoats} coats`,
+        checked: false
+      });
+
+      // Trim paint (fascia, gutters, windows, doors)
+      const trimQty = Math.ceil(houseWalls.length * 5);
+      exteriorPaintItems.push({
+        id: itemId++,
+        name: 'Exterior trim/enamel paint (Resene system)',
+        quantity: trimQty + 'L',
+        notes: 'For fascia, gutters, windows, doors',
+        checked: false
+      });
+    }
+
+    // Deck stain/paint
+    if (hasDecks) {
+      const decks = validExteriors.filter(e => e.type === 'Deck');
+      const deckArea = decks.reduce((sum, e) => sum + (parseFloat(e.area) || 0), 0);
+      const deckCoats = decks.reduce((sum, e) => sum + (parseFloat(e.coats) || 2), 0) / decks.length;
+
+      const deckProductQty = Math.ceil(deckArea * deckCoats * 0.15);
+      exteriorPaintItems.push({
+        id: itemId++,
+        name: 'Deck stain/oil or paint (Resene system)',
+        quantity: deckProductQty + 'L',
+        notes: `For ${decks.length} deck(s), ${deckCoats} coats`,
+        checked: false
+      });
+    }
+
+    materials.push({
+      category: 'Exterior Paint & Coatings (Resene)',
+      items: exteriorPaintItems
+    });
+
+    // EXTERIOR PROTECTION MATERIALS
+    const exteriorProtectionItems = [];
+    exteriorProtectionItems.push({ id: itemId++, name: 'Heavy-duty plastic sheeting', quantity: Math.ceil(validExteriors.length) + ' rolls', notes: 'For protecting plants and landscaping', checked: false });
+    exteriorProtectionItems.push({ id: itemId++, name: 'Canvas drop sheets (exterior)', quantity: Math.ceil(validExteriors.length / 2) + ' sheets', notes: 'For ground protection', checked: false });
+    exteriorProtectionItems.push({ id: itemId++, name: 'Exterior masking tape (weather-resistant)', quantity: Math.ceil(validExteriors.length) + ' rolls', notes: 'For windows and trim', checked: false });
+    exteriorProtectionItems.push({ id: itemId++, name: 'Masking paper/plastic for windows', quantity: hasHouseWalls ? '2-3 rolls' : '1 roll', notes: 'For protecting glass', checked: false });
+
+    materials.push({
+      category: 'Exterior Protection Materials',
+      items: exteriorProtectionItems
+    });
+
+    // EXTERIOR APPLICATION TOOLS
+    const exteriorToolItems = [];
+    exteriorToolItems.push({ id: itemId++, name: 'Exterior brushes (4-5" wide)', quantity: '2-3', notes: 'For large exterior surfaces', checked: false });
+    exteriorToolItems.push({ id: itemId++, name: 'Exterior roller frames (9-18")', quantity: '2', notes: 'Various sizes for exterior work', checked: false });
+    exteriorToolItems.push({ id: itemId++, name: 'Exterior roller sleeves (thick nap)', quantity: Math.ceil(validExteriors.length) + ' sleeves', notes: 'For textured surfaces', checked: false });
+    exteriorToolItems.push({ id: itemId++, name: 'Long extension poles (2-4m)', quantity: '1-2', notes: 'For reaching high areas from ground', checked: false });
+    if (hasHouseWalls) {
+      exteriorToolItems.push({ id: itemId++, name: 'Airless paint sprayer (optional)', quantity: '1', notes: 'For large house wall areas (optional but faster)', checked: false });
+      exteriorToolItems.push({ id: itemId++, name: 'Spray gun cleaning kit', quantity: '1', notes: 'If using sprayer', checked: false });
+    }
+
+    materials.push({
+      category: 'Exterior Application Tools',
+      items: exteriorToolItems
+    });
+  }
 
   return materials;
 }
