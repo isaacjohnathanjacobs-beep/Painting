@@ -1225,6 +1225,9 @@ async function updateChecklistItem(jobId, itemId, completed) {
   try {
     // Get current job data
     const response = await fetch(`${API_URL}/jobs/${jobId}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch job: ${response.statusText}`);
+    }
     const job = await response.json();
 
     // Parse and update checklist
@@ -1246,20 +1249,27 @@ async function updateChecklistItem(jobId, itemId, completed) {
     const itemIndex = checklist.findIndex(item => item.id === itemId);
     if (itemIndex !== -1) {
       checklist[itemIndex].completed = completed;
+    } else {
+      console.warn(`Task with id ${itemId} not found in checklist`);
     }
 
     // Save updated checklist
-    await fetch(`${API_URL}/jobs/${jobId}/checklist`, {
+    const updateResponse = await fetch(`${API_URL}/jobs/${jobId}/checklist`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ checklist })
     });
 
+    if (!updateResponse.ok) {
+      const errorData = await updateResponse.json();
+      throw new Error(errorData.error || 'Failed to update checklist');
+    }
+
     // Reload jobs to show updated progress
     loadJobs();
   } catch (error) {
     console.error('Error updating checklist:', error);
-    alert('Error updating checklist item');
+    throw error; // Re-throw to be caught by calling function
   }
 }
 
@@ -1338,7 +1348,7 @@ async function updateProfessionalTask(jobId, taskId, completed) {
     }
   } catch (error) {
     console.error('Error updating professional task:', error);
-    alert('Error updating task');
+    alert('Error updating task: ' + (error.message || error));
     loadJobs();
   }
 }
@@ -1350,16 +1360,21 @@ async function updateTaskCompletion(jobId, taskId, completed, completedBy, onSit
     await updateChecklistItem(jobId, taskId, completed);
 
     // Store task completion details in tasks table
-    await fetch(`/api/jobs/${jobId}/tasks/${taskId}/complete`, {
+    const response = await fetch(`/api/jobs/${jobId}/tasks/${taskId}/complete`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         completed,
         completed_by: completedBy,
-        on_site_employees: JSON.stringify(onSiteEmployees),
+        on_site_employees: onSiteEmployees, // Don't stringify - server will do it
         completion_date: completionDate
       })
     });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to save task completion');
+    }
 
     // Reload jobs to show updated state
     loadJobs();

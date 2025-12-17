@@ -379,7 +379,10 @@ app.patch('/api/jobs/:id/predictions', (req, res) => {
 // Update task completion
 app.patch('/api/jobs/:jobId/tasks/:taskId/complete', (req, res) => {
   const { completed, completed_by, on_site_employees, completion_date } = req.body;
-  const onSiteJson = JSON.stringify(on_site_employees || []);
+  // on_site_employees is already an array, stringify it for storage
+  const onSiteJson = typeof on_site_employees === 'string'
+    ? on_site_employees
+    : JSON.stringify(on_site_employees || []);
 
   // First check if task exists
   db.get(
