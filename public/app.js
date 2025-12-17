@@ -605,7 +605,12 @@ async function calculatePredictedCompletionDate(jobId, checklist) {
 async function getJobEmployees(jobId) {
   try {
     const response = await fetch(`${API_URL}/jobs/${jobId}/employees`);
-    return await response.json();
+    if (!response.ok) {
+      console.error('Failed to fetch job employees:', response.statusText);
+      return [];
+    }
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error('Error loading job employees:', error);
     return [];
@@ -1261,8 +1266,15 @@ async function updateChecklistItem(jobId, itemId, completed) {
     });
 
     if (!updateResponse.ok) {
-      const errorData = await updateResponse.json();
-      throw new Error(errorData.error || 'Failed to update checklist');
+      let errorMsg = 'Failed to update checklist';
+      try {
+        const errorData = await updateResponse.json();
+        errorMsg = errorData.error || errorMsg;
+      } catch (e) {
+        // Response wasn't JSON, use status text
+        errorMsg = updateResponse.statusText || errorMsg;
+      }
+      throw new Error(errorMsg);
     }
 
     // Reload jobs to show updated progress
@@ -1372,8 +1384,15 @@ async function updateTaskCompletion(jobId, taskId, completed, completedBy, onSit
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to save task completion');
+      let errorMsg = 'Failed to save task completion';
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.error || errorMsg;
+      } catch (e) {
+        // Response wasn't JSON, use status text
+        errorMsg = response.statusText || errorMsg;
+      }
+      throw new Error(errorMsg);
     }
 
     // Reload jobs to show updated state
