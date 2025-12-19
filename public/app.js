@@ -9,6 +9,19 @@ let editingEmployeeId = null;
 let currentJobForAssignment = null;
 let openChecklists = new Set(); // Track which checklists are open
 
+// Safe helper to parse dates - handles both arrays (already parsed by server) and strings
+function safeParseDates(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.warn('Failed to parse dates:', e);
+    return [];
+  }
+}
+
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
   setupTabs();
@@ -473,7 +486,7 @@ async function displayJobs(jobs) {
             // Collect all assigned dates with employee names
             const dateEmployees = {};
             jobAssignments.forEach(a => {
-              const dates = JSON.parse(a.assigned_dates || '[]');
+              const dates = safeParseDates(a.assigned_dates);
               dates.forEach(dateStr => {
                 if (!dateEmployees[dateStr]) dateEmployees[dateStr] = [];
                 const emp = employees.find(e => e.id === a.employee_id);
@@ -740,7 +753,7 @@ async function displayEmployees(employees) {
       const dateJobs = {};
 
       empAssignments.forEach(a => {
-        const dates = JSON.parse(a.assigned_dates || '[]');
+        const dates = safeParseDates(a.assigned_dates);
         dates.forEach(d => {
           assignedDates.add(d);
           if (!dateJobs[d]) dateJobs[d] = [];
@@ -1344,7 +1357,7 @@ async function updateProfessionalTask(jobId, taskId, completed) {
       const onSiteToday = employees.filter(emp => {
         const assignment = assignments.find(a => a.job_id === jobId && a.employee_id === emp.id);
         if (!assignment) return false;
-        const dates = JSON.parse(assignment.assigned_dates || '[]');
+        const dates = safeParseDates(assignment.assigned_dates);
         return dates.includes(today);
       });
 
@@ -4049,7 +4062,7 @@ function detectConflicts(assignments) {
   const conflicts = {};
 
   assignments.forEach(assignment => {
-    const dates = JSON.parse(assignment.assigned_dates || '[]');
+    const dates = safeParseDates(assignment.assigned_dates);
     dates.forEach(dateStr => {
       const key = `${assignment.employee_id}_${dateStr}`;
       if (!conflicts[key]) {
@@ -4133,7 +4146,7 @@ function renderCalendar() {
 
       // Find assignments for this employee on this date
       const assignmentsForDay = calendarAssignments.filter(a => {
-        const dates = JSON.parse(a.assigned_dates || '[]');
+        const dates = safeParseDates(a.assigned_dates);
         return a.employee_id === employee.id && dates.includes(dateStr);
       });
 
@@ -4168,7 +4181,7 @@ function renderCalendar() {
 async function handleCalendarCellClick(employeeId, dateStr, employeeName) {
   // Find existing assignments for this employee on this date
   const existingAssignments = calendarAssignments.filter(a => {
-    const dates = JSON.parse(a.assigned_dates || '[]');
+    const dates = safeParseDates(a.assigned_dates);
     return a.employee_id === employeeId && dates.includes(dateStr);
   });
 
@@ -4188,7 +4201,7 @@ async function handleCalendarCellClick(employeeId, dateStr, employeeName) {
     if (choice === 'remove' && existingAssignments.length > 0) {
       // Remove date from first assignment
       const assignment = existingAssignments[0];
-      const dates = JSON.parse(assignment.assigned_dates || '[]');
+      const dates = safeParseDates(assignment.assigned_dates);
       const updatedDates = dates.filter(d => d !== dateStr);
 
       try {
@@ -4243,7 +4256,7 @@ async function handleCalendarCellClick(employeeId, dateStr, employeeName) {
   let updatedDates = [];
   if (existingAssignment) {
     // Add date to existing assignment
-    updatedDates = JSON.parse(existingAssignment.assigned_dates || '[]');
+    updatedDates = safeParseDates(existingAssignment.assigned_dates);
     if (!updatedDates.includes(dateStr)) {
       updatedDates.push(dateStr);
       updatedDates.sort(); // Keep dates sorted
