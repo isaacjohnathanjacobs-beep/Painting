@@ -1228,59 +1228,82 @@ function toggleChecklist(jobId) {
 
 async function updateChecklistItem(jobId, itemId, completed) {
   try {
+    console.log(`[updateChecklistItem] Starting - jobId: ${jobId}, itemId: ${itemId}, completed: ${completed}`);
+
     // Get current job data
     const response = await fetch(`${API_URL}/jobs/${jobId}`);
+    console.log(`[updateChecklistItem] Fetch job response status: ${response.status}`);
+
     if (!response.ok) {
-      throw new Error(`Failed to fetch job: ${response.statusText}`);
+      throw new Error(`Failed to fetch job: ${response.status} ${response.statusText}`);
     }
-    const job = await response.json();
+
+    let job;
+    try {
+      const text = await response.text();
+      console.log(`[updateChecklistItem] Response text length: ${text.length}`);
+      job = text ? JSON.parse(text) : {};
+    } catch (e) {
+      console.error('[updateChecklistItem] Error parsing job response:', e);
+      throw new Error(`Failed to parse job data: ${e.message}`);
+    }
 
     // Parse and update checklist
     let checklist = [];
     try {
       if (typeof job.checklist === 'string') {
-        checklist = JSON.parse(job.checklist);
+        checklist = job.checklist ? JSON.parse(job.checklist) : [];
       } else if (Array.isArray(job.checklist)) {
         checklist = job.checklist;
       } else {
         checklist = [];
       }
     } catch (e) {
-      console.error('Error parsing checklist:', e);
+      console.error('[updateChecklistItem] Error parsing checklist:', e);
       checklist = [];
     }
+
+    console.log(`[updateChecklistItem] Checklist has ${checklist.length} items`);
 
     // Update the specific item
     const itemIndex = checklist.findIndex(item => item.id === itemId);
     if (itemIndex !== -1) {
       checklist[itemIndex].completed = completed;
+      console.log(`[updateChecklistItem] Updated task at index ${itemIndex}`);
     } else {
-      console.warn(`Task with id ${itemId} not found in checklist`);
+      console.warn(`[updateChecklistItem] Task with id ${itemId} not found in checklist`);
     }
 
     // Save updated checklist
+    console.log(`[updateChecklistItem] Saving checklist...`);
     const updateResponse = await fetch(`${API_URL}/jobs/${jobId}/checklist`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ checklist })
     });
 
+    console.log(`[updateChecklistItem] Update response status: ${updateResponse.status}`);
+
     if (!updateResponse.ok) {
       let errorMsg = 'Failed to update checklist';
       try {
-        const errorData = await updateResponse.json();
+        const errorText = await updateResponse.text();
+        console.log(`[updateChecklistItem] Error response text: ${errorText}`);
+        const errorData = errorText ? JSON.parse(errorText) : {};
         errorMsg = errorData.error || errorMsg;
       } catch (e) {
         // Response wasn't JSON, use status text
-        errorMsg = updateResponse.statusText || errorMsg;
+        errorMsg = `${updateResponse.status} ${updateResponse.statusText}`;
       }
       throw new Error(errorMsg);
     }
 
+    console.log(`[updateChecklistItem] Checklist updated successfully`);
+
     // Reload jobs to show updated progress
     loadJobs();
   } catch (error) {
-    console.error('Error updating checklist:', error);
+    console.error('[updateChecklistItem] Error:', error);
     throw error; // Re-throw to be caught by calling function
   }
 }
@@ -1288,8 +1311,11 @@ async function updateChecklistItem(jobId, itemId, completed) {
 // Update professional task with employee tracking
 async function updateProfessionalTask(jobId, taskId, completed) {
   try {
+    console.log(`[updateProfessionalTask] Starting - jobId: ${jobId}, taskId: ${taskId}, completed: ${completed}`);
+
     if (completed) {
       // When marking complete, ask which employee completed it
+      console.log(`[updateProfessionalTask] Getting job employees...`);
       const employees = await getJobEmployees(jobId);
 
       if (employees.length === 0) {
@@ -1303,8 +1329,17 @@ async function updateProfessionalTask(jobId, taskId, completed) {
       const today = formatDate(new Date());
 
       // Get calendar assignments to see who's on-site today
+      console.log(`[updateProfessionalTask] Getting calendar assignments...`);
       const calendarRes = await fetch('/api/calendar');
-      const assignments = await calendarRes.json();
+      let assignments = [];
+      if (calendarRes.ok) {
+        try {
+          const text = await calendarRes.text();
+          assignments = text ? JSON.parse(text) : [];
+        } catch (e) {
+          console.warn('[updateProfessionalTask] Could not parse calendar assignments:', e);
+        }
+      }
 
       const onSiteToday = employees.filter(emp => {
         const assignment = assignments.find(a => a.job_id === jobId && a.employee_id === emp.id);
@@ -1368,10 +1403,13 @@ async function updateProfessionalTask(jobId, taskId, completed) {
 // Update task completion with employee tracking
 async function updateTaskCompletion(jobId, taskId, completed, completedBy, onSiteEmployees, completionDate) {
   try {
+    console.log(`[updateTaskCompletion] Starting - jobId: ${jobId}, taskId: ${taskId}`);
+
     // Update checklist
     await updateChecklistItem(jobId, taskId, completed);
 
     // Store task completion details in tasks table
+    console.log(`[updateTaskCompletion] Saving to tasks table...`);
     const response = await fetch(`/api/jobs/${jobId}/tasks/${taskId}/complete`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -1383,22 +1421,28 @@ async function updateTaskCompletion(jobId, taskId, completed, completedBy, onSit
       })
     });
 
+    console.log(`[updateTaskCompletion] Tasks table response status: ${response.status}`);
+
     if (!response.ok) {
       let errorMsg = 'Failed to save task completion';
       try {
-        const errorData = await response.json();
+        const errorText = await response.text();
+        console.log(`[updateTaskCompletion] Error response text: ${errorText}`);
+        const errorData = errorText ? JSON.parse(errorText) : {};
         errorMsg = errorData.error || errorMsg;
       } catch (e) {
         // Response wasn't JSON, use status text
-        errorMsg = response.statusText || errorMsg;
+        errorMsg = `${response.status} ${response.statusText}`;
       }
       throw new Error(errorMsg);
     }
 
+    console.log(`[updateTaskCompletion] Task completion saved successfully`);
+
     // Reload jobs to show updated state
     loadJobs();
   } catch (error) {
-    console.error('Error saving task completion:', error);
+    console.error('[updateTaskCompletion] Error:', error);
     throw error;
   }
 }
