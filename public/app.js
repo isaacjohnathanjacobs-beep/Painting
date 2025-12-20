@@ -1203,6 +1203,8 @@ async function toggleJobAssignmentDate(jobId, employeeId, dateStr) {
 function closeAssignModal() {
   document.getElementById('assign-modal').classList.remove('active');
   currentJobForAssignment = null;
+  // Refresh job cards to show updated calendar
+  loadJobs();
 }
 
 // FORM HANDLERS
