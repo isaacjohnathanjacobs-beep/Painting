@@ -1982,6 +1982,81 @@ function calcExt(e) {
   return Math.round(p);
 }
 
+// Calculate estimated hours for a room
+function calcRoomHours(r) {
+  if(!r.length || !r.width) return 0;
+  const l = +r.length, w = +r.width, h = +r.ceilingHeight;
+  const floor = l * w, walls = 2 * (l + w) * h, ceil = floor, peri = 2 * (l + w);
+  let hours = 0;
+
+  // Base hours per task (hours per m² or per item)
+  if(r.selectedTasks['Paint walls']) hours += walls / 12; // ~12 m² per hour
+  if(r.selectedTasks['Paint ceiling']) hours += ceil / 10; // ~10 m² per hour (harder)
+  if(r.selectedTasks['Paint skirting/coving']) {
+    const trMult = {basic: 1, rounded: 1.25, colonial: 1.75};
+    hours += (peri / 8) * (trMult[r.trimType] || 1); // ~8m per hour base
+  }
+  if(r.selectedTasks['Paint doors']) hours += 1.5; // ~1.5 hours per door
+  if(r.selectedTasks['Paint windows']) hours += 1; // ~1 hour per window
+  if(r.selectedTasks['Paint cabinets']) hours += floor * 0.2 / 3; // Slower work
+  if(r.selectedTasks['Remove wallpaper']) hours += walls / 5; // ~5 m² per hour (slow)
+
+  // Apply condition and coat multipliers
+  const cdMult = {excellent: 0.9, good: 1, fair: 1.3, poor: 1.6}[r.condition] || 1;
+  const coMult = r.coats === '3' ? 1.4 : 1;
+  const hMult = h >= 3.6 ? 1.3 : h >= 3 ? 1.15 : h >= 2.7 ? 1.05 : 1;
+
+  hours *= cdMult * coMult * hMult;
+  return Math.round(hours * 10) / 10; // Round to 1 decimal
+}
+
+// Calculate estimated hours for exterior
+function calcExtHours(e) {
+  let hours = 0;
+
+  const cdMult = {excellent: 0.85, good: 1, fair: 1.4, poor: 1.8}[e.condition] || 1;
+  const coMult = e.coats === '3' ? 1.4 : 1;
+  const scMult = e.scaffolding ? 1.2 : 1;
+  const stMult = +e.height === 2 ? 1.25 : +e.height >= 3 ? 1.5 : 1;
+
+  if(e.type === 'House Walls') {
+    const a = +e.area || 0;
+    if(e.selectedTasks['Paint walls']) hours += a / 8; // ~8 m² per hour exterior
+    if(e.selectedTasks['Fascia/soffits']) hours += (a * 0.15) / 6;
+    if(e.selectedTasks['Gutters/downpipes']) hours += (a * 0.1) / 8;
+    if(e.selectedTasks['Window frames']) hours += Math.ceil(a / 15) * 1.5;
+    if(e.selectedTasks['Exterior doors']) hours += 2.5;
+  } else if(e.type === 'Deck') {
+    const a = +e.deckArea || 0;
+    if(e.selectedTasks['Stain/oil deck']) hours += a / 15; // Faster
+    if(e.selectedTasks['Paint deck']) hours += a / 10;
+    if(e.selectedTasks['Balustrades']) hours += Math.sqrt(a) * 0.5;
+  } else if(e.type === 'Fence') {
+    const a = +e.area || 0;
+    if(e.selectedTasks['Paint fence']) hours += a / 6;
+    if(e.selectedTasks['Stain fence']) hours += a / 10;
+  } else if(e.type === 'Garage' || e.type === 'Shed') {
+    const a = +e.area || 0;
+    if(e.selectedTasks['Paint walls']) hours += a / 10;
+    if(e.selectedTasks['Paint trim']) hours += (a * 0.12) / 6;
+    if(e.selectedTasks['Paint doors']) hours += 1.5;
+  } else if(e.type === 'Roof') {
+    const a = +e.area || 0;
+    const roofMult = e.roofType === 'Metal' ? 1.1 : e.roofType === 'Tile' ? 1.4 : 1;
+    if(e.selectedTasks['Paint roof']) hours += (a / 6) * roofMult;
+  }
+
+  hours *= cdMult * coMult * scMult * stMult;
+  return Math.round(hours * 10) / 10;
+}
+
+// Calculate total estimated hours
+function calcTotalHours() {
+  const interiorHours = rooms.reduce((s, r) => s + calcRoomHours(r), 0);
+  const exteriorHours = exteriors.reduce((s, e) => s + calcExtHours(e), 0);
+  return Math.round((interiorHours + exteriorHours) * 10) / 10;
+}
+
 function calcAll() {
   const iT = rooms.reduce((s, r) => s + calcRoom(r), 0);
   const eT = exteriors.reduce((s, e) => s + calcExt(e), 0);
@@ -1992,6 +2067,7 @@ function calcAll() {
   document.getElementById('max-price').textContent = Math.round(t * 1.08).toLocaleString();
   document.getElementById('interior-subtotal').textContent = iT.toLocaleString();
   document.getElementById('exterior-subtotal').textContent = eT.toLocaleString();
+  document.getElementById('total-hours').textContent = calcTotalHours();
 
   let iRows = '';
   rooms.forEach((r, i) => {
@@ -4230,7 +4306,7 @@ async function createJobFromEstimate() {
   document.getElementById('status').value = 'pending';
   document.getElementById('start-date').value = '';
   document.getElementById('end-date').value = '';
-  document.getElementById('estimated-hours').value = '';
+  document.getElementById('estimated-hours').value = calcTotalHours();
   document.getElementById('actual-hours').value = '';
   document.getElementById('estimated-cost').value = totalPrice.replace(/,/g, '');
   document.getElementById('actual-cost').value = '';
