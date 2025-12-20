@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutorial Island - OSRS-Style Game</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1a1a2e; color: #eee; overflow: hidden; width: 100vw; height: 100vh; }
+        .screen { display: none; width: 100%; height: 100%; }
+        .screen.active { display: flex; }
+
+        /* Character Creator */
+        #character-creator { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); justify-content: center; align-items: center; }
+        .creator-container { background: rgba(0, 0, 0, 0.6); border: 2px solid #4a90d9; border-radius: 12px; padding: 30px; max-width: 700px; width: 90%; box-shadow: 0 0 30px rgba(74, 144, 217, 0.3); }
+        .creator-container h1 { text-align: center; color: #4a90d9; margin-bottom: 20px; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5); font-size: 2em; }
+        .creator-content { display: flex; gap: 30px; }
+        .preview-section { flex: 0 0 150px; display: flex; flex-direction: column; align-items: center; }
+        #character-preview { background: linear-gradient(180deg, #87CEEB 0%, #90EE90 100%); border: 3px solid #333; border-radius: 8px; image-rendering: pixelated; }
+        .preview-label { margin-top: 10px; color: #888; font-size: 0.9em; }
+        .options-section { flex: 1; display: flex; flex-direction: column; gap: 15px; }
+        .option-group { display: flex; flex-direction: column; gap: 8px; }
+        .option-group label { color: #4a90d9; font-weight: bold; font-size: 0.9em; }
+        .option-group input[type="text"] { padding: 10px 15px; border: 2px solid #333; border-radius: 6px; background: #1a1a2e; color: #fff; font-size: 1em; }
+        .option-group input[type="text"]:focus { outline: none; border-color: #4a90d9; }
+        .button-group { display: flex; gap: 10px; align-items: center; }
+        .option-btn { padding: 8px 20px; border: 2px solid #333; border-radius: 6px; background: #2d2d4a; color: #ccc; cursor: pointer; transition: all 0.3s; }
+        .option-btn:hover { background: #3d3d5a; border-color: #4a90d9; }
+        .option-btn.active { background: #4a90d9; border-color: #6ab0f9; color: #fff; }
+        .arrow-btn { width: 40px; height: 40px; border: 2px solid #333; border-radius: 6px; background: #2d2d4a; color: #ccc; cursor: pointer; font-size: 1.2em; }
+        .arrow-btn:hover { background: #4a90d9; border-color: #6ab0f9; }
+        #hair-name { min-width: 100px; text-align: center; color: #fff; }
+        .color-options { display: flex; gap: 8px; flex-wrap: wrap; }
+        .color-btn { width: 36px; height: 36px; border: 3px solid #333; border-radius: 6px; cursor: pointer; transition: all 0.3s; }
+        .color-btn:hover { transform: scale(1.1); border-color: #fff; }
+        .color-btn.active { border-color: #4a90d9; box-shadow: 0 0 10px rgba(74, 144, 217, 0.5); }
+        .start-btn { width: 100%; margin-top: 20px; padding: 15px; border: none; border-radius: 8px; background: linear-gradient(135deg, #4a90d9 0%, #357abd 100%); color: #fff; font-size: 1.2em; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 2px; }
+        .start-btn:hover { background: linear-gradient(135deg, #5aa0e9 0%, #4589cd 100%); transform: translateY(-2px); box-shadow: 0 5px 20px rgba(74, 144, 217, 0.4); }
+
+        /* Game Screen */
+        #game-screen { position: relative; background: #000; }
+        #game-canvas { display: block; image-rendering: pixelated; }
+        #game-ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        #game-ui > * { pointer-events: auto; }
+        #top-bar { position: absolute; top: 0; left: 0; right: 0; height: 40px; background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 100%); display: flex; align-items: center; padding: 0 20px; }
+        #player-info { color: #0f0; font-weight: bold; font-size: 16px; }
+        .ui-panel { position: absolute; background: rgba(30, 30, 50, 0.95); border: 2px solid #4a90d9; border-radius: 8px; padding: 15px; display: none; }
+        .ui-panel.visible { display: block; }
+        .ui-panel h3 { color: #4a90d9; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #333; text-align: center; }
+        #stats-panel { top: 50px; right: 170px; width: 180px; }
+        .stat-row { display: flex; align-items: center; padding: 5px 0; border-bottom: 1px solid #222; }
+        .stat-icon { width: 25px; font-size: 1em; }
+        .stat-name { flex: 1; color: #aaa; font-size: 0.85em; }
+        .stat-value { color: #4a90d9; font-weight: bold; }
+        #inventory-panel { top: 50px; right: 170px; width: 210px; }
+        #inventory-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+        .inventory-slot { width: 42px; height: 42px; background: rgba(0, 0, 0, 0.5); border: 1px solid #333; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.5em; cursor: pointer; }
+        .inventory-slot:hover { border-color: #4a90d9; background: rgba(74, 144, 217, 0.2); }
+        .inventory-slot.filled { background: rgba(50, 50, 70, 0.8); }
+        #minimap-container { position: absolute; top: 50px; right: 10px; border: 3px solid #4a90d9; border-radius: 8px; overflow: hidden; }
+        #minimap { background: #1a3a1a; }
+        #chat-box { position: absolute; bottom: 60px; left: 10px; width: 350px; height: 120px; background: rgba(0, 0, 0, 0.8); border: 2px solid #333; border-radius: 8px; overflow: hidden; }
+        #chat-messages { height: 100%; padding: 10px; overflow-y: auto; font-size: 0.85em; }
+        .chat-message { margin-bottom: 5px; line-height: 1.4; }
+        .chat-message.system { color: #4a90d9; }
+        .chat-message.npc { color: #ffd700; }
+        #dialogue-box { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(20, 20, 40, 0.98); display: flex; padding: 15px; border-top: 2px solid #4a90d9; }
+        #dialogue-box.hidden { display: none; }
+        #npc-portrait { width: 60px; height: 60px; background: #2d2d4a; border: 2px solid #4a90d9; border-radius: 8px; margin-right: 15px; display: flex; align-items: center; justify-content: center; font-size: 2em; }
+        #dialogue-content { flex: 1; }
+        #npc-name { color: #ffd700; font-weight: bold; margin-bottom: 5px; }
+        #dialogue-text { color: #fff; line-height: 1.5; margin-bottom: 10px; }
+        #dialogue-options { display: flex; flex-direction: column; gap: 5px; }
+        .dialogue-option { padding: 8px 15px; background: #2d2d4a; border: 1px solid #4a90d9; border-radius: 4px; color: #fff; cursor: pointer; text-align: left; }
+        .dialogue-option:hover { background: #4a90d9; }
+        #action-bar { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; background: rgba(0, 0, 0, 0.8); padding: 8px; border-radius: 8px; border: 2px solid #333; }
+        .action-btn { width: 45px; height: 45px; border: 2px solid #333; border-radius: 6px; background: #2d2d4a; color: #fff; font-size: 1.3em; cursor: pointer; }
+        .action-btn:hover { background: #3d3d5a; border-color: #4a90d9; }
+        .action-btn.active { background: #4a90d9; border-color: #6ab0f9; }
+        #tutorial-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center; z-index: 100; }
+        #tutorial-overlay.hidden { display: none; }
+        #tutorial-box { background: rgba(30, 30, 50, 0.98); border: 3px solid #ffd700; border-radius: 12px; padding: 30px; max-width: 500px; text-align: center; }
+        #tutorial-title { color: #ffd700; font-size: 1.5em; margin-bottom: 15px; }
+        #tutorial-text { color: #fff; line-height: 1.6; margin-bottom: 20px; }
+        #tutorial-continue { padding: 12px 30px; background: linear-gradient(135deg, #ffd700 0%, #daa520 100%); border: none; border-radius: 6px; color: #1a1a2e; font-weight: bold; cursor: pointer; }
+        #tutorial-continue:hover { box-shadow: 0 5px 15px rgba(255, 215, 0, 0.4); }
+        #context-menu { position: absolute; background: rgba(20, 20, 40, 0.98); border: 2px solid #4a90d9; border-radius: 6px; min-width: 150px; z-index: 200; }
+        #context-menu.hidden { display: none; }
+        #context-options { list-style: none; }
+        #context-options li { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #333; }
+        #context-options li:hover { background: #4a90d9; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="character-creator" class="screen active">
+        <div class="creator-container">
+            <h1>Create Your Character</h1>
+            <div class="creator-content">
+                <div class="preview-section">
+                    <canvas id="character-preview" width="128" height="192"></canvas>
+                    <p class="preview-label">Preview</p>
+                </div>
+                <div class="options-section">
+                    <div class="option-group">
+                        <label>Character Name</label>
+                        <input type="text" id="character-name" maxlength="12" placeholder="Enter name...">
+                    </div>
+                    <div class="option-group">
+                        <label>Gender</label>
+                        <div class="button-group">
+                            <button class="option-btn active" data-option="gender" data-value="male">Male</button>
+                            <button class="option-btn" data-option="gender" data-value="female">Female</button>
+                        </div>
+                    </div>
+                    <div class="option-group">
+                        <label>Skin Tone</label>
+                        <div class="color-options" id="skin-options">
+                            <button class="color-btn active" data-option="skin" data-value="0" style="background-color: #FFDBAC;"></button>
+                            <button class="color-btn" data-option="skin" data-value="1" style="background-color: #F1C27D;"></button>
+                            <button class="color-btn" data-option="skin" data-value="2" style="background-color: #E0AC69;"></button>
+                            <button class="color-btn" data-option="skin" data-value="3" style="background-color: #C68642;"></button>
+                            <button class="color-btn" data-option="skin" data-value="4" style="background-color: #8D5524;"></button>
+                            <button class="color-btn" data-option="skin" data-value="5" style="background-color: #5C3A21;"></button>
+                        </div>
+                    </div>
+                    <div class="option-group">
+                        <label>Hair Style</label>
+                        <div class="button-group">
+                            <button class="arrow-btn" id="hair-prev">◀</button>
+                            <span id="hair-name">Short</span>
+                            <button class="arrow-btn" id="hair-next">▶</button>
+                        </div>
+                    </div>
+                    <div class="option-group">
+                        <label>Hair Color</label>
+                        <div class="color-options">
+                            <button class="color-btn active" data-option="hairColor" data-value="0" style="background-color: #090806;"></button>
+                            <button class="color-btn" data-option="hairColor" data-value="1" style="background-color: #3D2314;"></button>
+                            <button class="color-btn" data-option="hairColor" data-value="2" style="background-color: #85461E;"></button>
+                            <button class="color-btn" data-option="hairColor" data-value="3" style="background-color: #D4A574;"></button>
+                            <button class="color-btn" data-option="hairColor" data-value="4" style="background-color: #E5C100;"></button>
+                            <button class="color-btn" data-option="hairColor" data-value="5" style="background-color: #B55239;"></button>
+                            <button class="color-btn" data-option="hairColor" data-value="6" style="background-color: #DEDEDE;"></button>
+                        </div>
+                    </div>
+                    <div class="option-group">
+                        <label>Shirt Color</label>
+                        <div class="color-options">
+                            <button class="color-btn active" data-option="shirt" data-value="0" style="background-color: #4A90D9;"></button>
+                            <button class="color-btn" data-option="shirt" data-value="1" style="background-color: #D94A4A;"></button>
+                            <button class="color-btn" data-option="shirt" data-value="2" style="background-color: #4AD94A;"></button>
+                            <button class="color-btn" data-option="shirt" data-value="3" style="background-color: #D9D94A;"></button>
+                            <button class="color-btn" data-option="shirt" data-value="4" style="background-color: #9B4AD9;"></button>
+                            <button class="color-btn" data-option="shirt" data-value="5" style="background-color: #FFFFFF;"></button>
+                        </div>
+                    </div>
+                    <div class="option-group">
+                        <label>Pants Color</label>
+                        <div class="color-options">
+                            <button class="color-btn active" data-option="pants" data-value="0" style="background-color: #4A5568;"></button>
+                            <button class="color-btn" data-option="pants" data-value="1" style="background-color: #2D3748;"></button>
+                            <button class="color-btn" data-option="pants" data-value="2" style="background-color: #744210;"></button>
+                            <button class="color-btn" data-option="pants" data-value="3" style="background-color: #1A365D;"></button>
+                            <button class="color-btn" data-option="pants" data-value="4" style="background-color: #553C9A;"></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button id="start-game" class="start-btn">Enter Tutorial Island</button>
+        </div>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <canvas id="game-canvas"></canvas>
+        <div id="game-ui">
+            <div id="top-bar"><div id="player-info"><span id="player-name-display">Player</span></div></div>
+            <div id="stats-panel" class="ui-panel">
+                <h3>Skills</h3>
+                <div class="stat-row"><span class="stat-icon">⚔️</span><span class="stat-name">Attack</span><span class="stat-value" id="stat-attack">1</span></div>
+                <div class="stat-row"><span class="stat-icon">🛡️</span><span class="stat-name">Defence</span><span class="stat-value" id="stat-defence">1</span></div>
+                <div class="stat-row"><span class="stat-icon">💪</span><span class="stat-name">Strength</span><span class="stat-value" id="stat-strength">1</span></div>
+                <div class="stat-row"><span class="stat-icon">❤️</span><span class="stat-name">Hitpoints</span><span class="stat-value" id="stat-hitpoints">10</span></div>
+                <div class="stat-row"><span class="stat-icon">🎣</span><span class="stat-name">Fishing</span><span class="stat-value" id="stat-fishing">1</span></div>
+                <div class="stat-row"><span class="stat-icon">🍳</span><span class="stat-name">Cooking</span><span class="stat-value" id="stat-cooking">1</span></div>
+                <div class="stat-row"><span class="stat-icon">🪓</span><span class="stat-name">Woodcutting</span><span class="stat-value" id="stat-woodcutting">1</span></div>
+            </div>
+            <div id="inventory-panel" class="ui-panel"><h3>Inventory</h3><div id="inventory-grid"></div></div>
+            <div id="minimap-container"><canvas id="minimap" width="150" height="150"></canvas></div>
+            <div id="chat-box"><div id="chat-messages"></div><div id="dialogue-box" class="hidden"><div id="npc-portrait"></div><div id="dialogue-content"><p id="npc-name"></p><p id="dialogue-text"></p><div id="dialogue-options"></div></div></div></div>
+            <div id="action-bar">
+                <button class="action-btn" id="btn-stats" title="Stats">📊</button>
+                <button class="action-btn" id="btn-inventory" title="Inventory">🎒</button>
+                <button class="action-btn" id="btn-map" title="Map">🗺️</button>
+            </div>
+        </div>
+        <div id="tutorial-overlay" class="hidden"><div id="tutorial-box"><h3 id="tutorial-title">Welcome!</h3><p id="tutorial-text"></p><button id="tutorial-continue">Continue</button></div></div>
+        <div id="context-menu" class="hidden"><ul id="context-options"></ul></div>
+    </div>
+
+<script>
+// ==================== GAME CODE ====================
+const TILE_SIZE = 32;
+const MAP_WIDTH = 50;
+const MAP_HEIGHT = 40;
+
+// Skin/Hair/Clothing colors
+const SKIN_COLORS = ['#FFDBAC', '#F1C27D', '#E0AC69', '#C68642', '#8D5524', '#5C3A21'];
+const HAIR_COLORS = ['#090806', '#3D2314', '#85461E', '#D4A574', '#E5C100', '#B55239', '#DEDEDE'];
+const HAIR_STYLES = ['Short', 'Long', 'Spiky', 'Ponytail', 'Bald', 'Mohawk'];
+const SHIRT_COLORS = ['#4A90D9', '#D94A4A', '#4AD94A', '#D9D94A', '#9B4AD9', '#FFFFFF'];
+const PANTS_COLORS = ['#4A5568', '#2D3748', '#744210', '#1A365D', '#553C9A'];
+
+// Character state
+let character = { name: 'Adventurer', gender: 'male', skin: 0, hairStyle: 0, hairColor: 0, shirt: 0, pants: 0 };
+
+// Player state
+let player = {
+    x: 25 * TILE_SIZE, y: 20 * TILE_SIZE,
+    tileX: 25, tileY: 20,
+    targetX: 25 * TILE_SIZE, targetY: 25 * TILE_SIZE,
+    path: [], isMoving: false, direction: 'down', animFrame: 0,
+    inventory: new Array(28).fill(null),
+    stats: { attack: 1, defence: 1, strength: 1, hitpoints: 10, fishing: 1, cooking: 1, woodcutting: 1 }
+};
+
+// Map data
+let mapTiles = [];
+let mapObjects = [];
+
+// NPCs
+const npcs = [
+    { id: 'guide', name: 'Survival Expert', type: 'guide', tileX: 24, tileY: 19, direction: 'down' },
+    { id: 'fishing', name: 'Fishing Tutor', type: 'fishing', tileX: 35, tileY: 9, direction: 'left' },
+    { id: 'cooking', name: 'Cooking Tutor', type: 'cooking', tileX: 12, tileY: 29, direction: 'right' },
+    { id: 'woodcutting', name: 'Woodcutting Tutor', type: 'woodcutting', tileX: 37, tileY: 27, direction: 'down' }
+];
+
+// Game state
+let camera = { x: 0, y: 0, width: 0, height: 0 };
+let gameCanvas, gameCtx, minimapCanvas, minimapCtx;
+let tutorialStep = 0;
+let activePanel = 'inventory';
+
+// ==================== MAP GENERATION ====================
+function generateMap() {
+    // Initialize with water
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        mapTiles[y] = [];
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            mapTiles[y][x] = 1; // water
+        }
+    }
+
+    // Create island
+    const centerX = 25, centerY = 20;
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            const dx = (x - centerX) / 18;
+            const dy = (y - centerY) / 14;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const noise = Math.sin(x * 0.5) * 0.1 + Math.cos(y * 0.3) * 0.1;
+
+            if (dist + noise < 0.85) mapTiles[y][x] = 0; // grass
+            else if (dist + noise < 1.0) mapTiles[y][x] = 2; // sand
+        }
+    }
+
+    // Create paths
+    createPath(12, 20, 38, 20);
+    createPath(25, 10, 25, 30);
+    createPath(25, 10, 35, 10);
+    createPath(25, 30, 15, 30);
+
+    // Create stone areas
+    createArea(33, 8, 6, 4, 3);
+    createArea(10, 28, 6, 4, 3);
+    createArea(35, 25, 5, 5, 3);
+    createArea(22, 18, 7, 5, 3);
+
+    // Add objects
+    mapObjects = [
+        { type: 'tree', x: 38, y: 28 }, { type: 'tree', x: 39, y: 29 }, { type: 'tree', x: 37, y: 30 },
+        { type: 'tree', x: 20, y: 14 }, { type: 'tree', x: 30, y: 14 },
+        { type: 'fishing_spot', x: 36, y: 7, action: 'fish' },
+        { type: 'fire', x: 12, y: 30, action: 'cook' },
+        { type: 'sign', x: 24, y: 17, text: 'Welcome to Tutorial Island!' },
+        { type: 'sign', x: 35, y: 11, text: 'Fishing Dock - Click the bubbles!' },
+        { type: 'sign', x: 38, y: 28, text: 'Woodcutting - Click trees!' },
+        { type: 'sign', x: 11, y: 31, text: 'Cooking Area - Use fire!' }
+    ];
+}
+
+function createPath(x1, y1, x2, y2) {
+    const steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
+    for (let i = 0; i <= steps; i++) {
+        const x = Math.round(x1 + (x2 - x1) * i / steps);
+        const y = Math.round(y1 + (y2 - y1) * i / steps);
+        if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
+            mapTiles[y][x] = 6; // path
+            if (x + 1 < MAP_WIDTH) mapTiles[y][x + 1] = 6;
+        }
+    }
+}
+
+function createArea(sx, sy, w, h, tile) {
+    for (let y = sy; y < sy + h && y < MAP_HEIGHT; y++) {
+        for (let x = sx; x < sx + w && x < MAP_WIDTH; x++) {
+            if (x >= 0 && y >= 0) mapTiles[y][x] = tile;
+        }
+    }
+}
+
+function isWalkable(tx, ty) {
+    if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) return false;
+    const tile = mapTiles[ty][tx];
+    if (tile === 1) return false; // water
+    for (const obj of mapObjects) {
+        if (obj.x === tx && obj.y === ty && obj.type === 'tree') return false;
+    }
+    return true;
+}
+
+// ==================== PATHFINDING ====================
+function findPath(startX, startY, endX, endY) {
+    if (!isWalkable(endX, endY)) return null;
+
+    const openSet = [{ x: startX, y: startY, g: 0, f: 0, parent: null }];
+    const closedSet = new Set();
+
+    while (openSet.length > 0) {
+        openSet.sort((a, b) => a.f - b.f);
+        const current = openSet.shift();
+        const key = `${current.x},${current.y}`;
+
+        if (current.x === endX && current.y === endY) {
+            const path = [];
+            let node = current;
+            while (node.parent) {
+                path.unshift({ x: node.x, y: node.y });
+                node = node.parent;
+            }
+            return path;
+        }
+
+        closedSet.add(key);
+
+        const dirs = [[0,-1],[0,1],[-1,0],[1,0],[-1,-1],[1,-1],[-1,1],[1,1]];
+        for (const [dx, dy] of dirs) {
+            const nx = current.x + dx, ny = current.y + dy;
+            const nkey = `${nx},${ny}`;
+
+            if (closedSet.has(nkey) || !isWalkable(nx, ny)) continue;
+            if (dx !== 0 && dy !== 0 && (!isWalkable(current.x + dx, current.y) || !isWalkable(current.x, current.y + dy))) continue;
+
+            const g = current.g + (dx !== 0 && dy !== 0 ? 1.414 : 1);
+            const h = Math.sqrt((endX - nx) ** 2 + (endY - ny) ** 2);
+            const existing = openSet.find(n => n.x === nx && n.y === ny);
+
+            if (!existing || g < existing.g) {
+                if (existing) openSet.splice(openSet.indexOf(existing), 1);
+                openSet.push({ x: nx, y: ny, g, f: g + h, parent: current });
+            }
+        }
+    }
+    return null;
+}
+
+// ==================== DRAWING ====================
+function drawCharacter(ctx, char, x, y, scale, dir, frame) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+
+    const skin = SKIN_COLORS[char.skin];
+    const hair = HAIR_COLORS[char.hairColor];
+    const shirt = SHIRT_COLORS[char.shirt];
+    const pants = PANTS_COLORS[char.pants];
+    const walk = Math.sin(frame * 0.3) * 2;
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(16, 46, 10, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Legs
+    ctx.fillStyle = pants;
+    ctx.fillRect(9, 32, 6, 12);
+    ctx.fillRect(17, 32, 6, 12);
+
+    // Feet
+    ctx.fillStyle = '#4A3728';
+    ctx.fillRect(8, 42, 7, 4);
+    ctx.fillRect(17, 42, 7, 4);
+
+    // Body
+    ctx.fillStyle = shirt;
+    ctx.fillRect(8, 20, 16, 14);
+
+    // Arms
+    ctx.fillStyle = skin;
+    ctx.fillRect(3, 21, 5, 10);
+    ctx.fillRect(24, 21, 5, 10);
+    ctx.fillStyle = shirt;
+    ctx.fillRect(3, 21, 5, 4);
+    ctx.fillRect(24, 21, 5, 4);
+
+    // Head
+    ctx.fillStyle = skin;
+    ctx.fillRect(8, 4, 16, 16);
+    ctx.fillRect(5, 9, 3, 5);
+    ctx.fillRect(24, 9, 3, 5);
+
+    // Face
+    if (dir !== 'up') {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(11, 10, 3, 3);
+        ctx.fillRect(18, 10, 3, 3);
+        ctx.fillStyle = '#FFF';
+        ctx.fillRect(12, 11, 1, 1);
+        ctx.fillRect(19, 11, 1, 1);
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(14, 15, 4, 2);
+    }
+
+    // Hair
+    ctx.fillStyle = hair;
+    const style = HAIR_STYLES[char.hairStyle];
+    if (style !== 'Bald') {
+        ctx.fillRect(7, 2, 18, 6);
+        ctx.fillRect(8, 6, 16, 3);
+        if (style === 'Long') {
+            ctx.fillRect(4, 8, 5, 16);
+            ctx.fillRect(23, 8, 5, 16);
+        } else if (style === 'Spiky') {
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                ctx.moveTo(8 + i * 4, 4);
+                ctx.lineTo(10 + i * 4, -2);
+                ctx.lineTo(12 + i * 4, 4);
+                ctx.fill();
+            }
+        } else if (style === 'Ponytail' && dir === 'up') {
+            ctx.fillRect(14, 12, 4, 12);
+        } else if (style === 'Mohawk') {
+            ctx.fillRect(14, -4, 4, 10);
+        }
+    }
+
+    ctx.restore();
+}
+
+function drawNPC(ctx, npc, screenX, screenY) {
+    const configs = {
+        guide: { skin: 0, hair: '#DEDEDE', shirt: '#FFD700', pants: '#2D3748' },
+        fishing: { skin: 1, hair: '#3D2314', shirt: '#4A90D9', pants: '#744210' },
+        cooking: { skin: 3, hair: '#85461E', shirt: '#FFFFFF', pants: '#4A5568' },
+        woodcutting: { skin: 4, hair: '#3D2314', shirt: '#22543D', pants: '#744210' }
+    };
+    const cfg = configs[npc.type] || configs.guide;
+
+    ctx.save();
+    ctx.translate(screenX, screenY);
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(16, 46, 10, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const skin = SKIN_COLORS[cfg.skin];
+
+    // Body
+    ctx.fillStyle = cfg.pants;
+    ctx.fillRect(9, 32, 6, 12);
+    ctx.fillRect(17, 32, 6, 12);
+    ctx.fillStyle = '#4A3728';
+    ctx.fillRect(8, 42, 7, 4);
+    ctx.fillRect(17, 42, 7, 4);
+    ctx.fillStyle = cfg.shirt;
+    ctx.fillRect(8, 20, 16, 14);
+    ctx.fillStyle = skin;
+    ctx.fillRect(3, 21, 5, 10);
+    ctx.fillRect(24, 21, 5, 10);
+    ctx.fillStyle = cfg.shirt;
+    ctx.fillRect(3, 21, 5, 4);
+    ctx.fillRect(24, 21, 5, 4);
+    ctx.fillStyle = skin;
+    ctx.fillRect(8, 4, 16, 16);
+    ctx.fillRect(5, 9, 3, 5);
+    ctx.fillRect(24, 9, 3, 5);
+
+    // Face
+    ctx.fillStyle = '#000';
+    ctx.fillRect(11, 10, 3, 3);
+    ctx.fillRect(18, 10, 3, 3);
+    ctx.fillStyle = '#FFF';
+    ctx.fillRect(12, 11, 1, 1);
+    ctx.fillRect(19, 11, 1, 1);
+
+    // Hair
+    ctx.fillStyle = cfg.hair;
+    ctx.fillRect(7, 2, 18, 6);
+    ctx.fillRect(5, 5, 4, 5);
+    ctx.fillRect(23, 5, 4, 5);
+
+    // Yellow marker
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath();
+    ctx.arc(16, -8, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+
+    // Name
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(npc.name, screenX + 16, screenY - 20);
+}
+
+function drawTile(ctx, type, x, y) {
+    const colors = {
+        0: ['#4a7c23', '#5a8c33', '#3a6c13'], // grass
+        1: ['#2980b9', '#3498db', '#2471a3'], // water
+        2: ['#d4a574', '#c9986a', '#deb584'], // sand
+        3: ['#7f8c8d', '#95a5a6', '#6d7b7c'], // stone
+        6: ['#BDB76B', '#CDC673', '#ADAD5C']  // path
+    };
+    const c = colors[type] || colors[0];
+    ctx.fillStyle = c[(Math.floor(x/TILE_SIZE) + Math.floor(y/TILE_SIZE)) % 3];
+    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+
+    if (type === 1) { // water shimmer
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillRect(x + 4 + Math.sin(Date.now()/500 + x) * 2, y + 4, TILE_SIZE - 8, 2);
+    }
+}
+
+function drawObject(ctx, obj, x, y) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    if (obj.type === 'tree') {
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(12, 24, 8, 20);
+        ctx.fillStyle = '#228B22';
+        ctx.beginPath();
+        ctx.arc(16, 16, 16, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#2E8B2E';
+        ctx.beginPath();
+        ctx.arc(16, 12, 12, 0, Math.PI * 2);
+        ctx.fill();
+    } else if (obj.type === 'fishing_spot') {
+        ctx.fillStyle = '#2980b9';
+        ctx.beginPath();
+        ctx.ellipse(16, 20, 12, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath();
+        ctx.arc(12 + Math.sin(Date.now()/300) * 3, 18, 3, 0, Math.PI * 2);
+        ctx.arc(20, 16 + Math.cos(Date.now()/400) * 2, 2, 0, Math.PI * 2);
+        ctx.fill();
+    } else if (obj.type === 'fire') {
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(6, 26, 20, 6);
+        const flicker = Math.sin(Date.now() / 100) * 3;
+        ctx.fillStyle = '#FF4500';
+        ctx.beginPath();
+        ctx.moveTo(16, 4 + flicker);
+        ctx.lineTo(8, 24);
+        ctx.lineTo(24, 24);
+        ctx.fill();
+        ctx.fillStyle = '#FFD700';
+        ctx.beginPath();
+        ctx.moveTo(16, 10 + flicker);
+        ctx.lineTo(11, 22);
+        ctx.lineTo(21, 22);
+        ctx.fill();
+    } else if (obj.type === 'sign') {
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(14, 16, 4, 20);
+        ctx.fillStyle = '#DEB887';
+        ctx.fillRect(4, 4, 24, 14);
+        ctx.strokeStyle = '#8B4513';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(4, 4, 24, 14);
+    }
+
+    ctx.restore();
+}
+
+// ==================== GAME LOOP ====================
+function updateGame() {
+    // Move player along path
+    if (player.path.length > 0) {
+        const next = player.path[0];
+        const tx = next.x * TILE_SIZE;
+        const ty = next.y * TILE_SIZE;
+        const dx = tx - player.x;
+        const dy = ty - player.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (Math.abs(dx) > Math.abs(dy)) player.direction = dx > 0 ? 'right' : 'left';
+        else if (dy !== 0) player.direction = dy > 0 ? 'down' : 'up';
+
+        if (dist > 3) {
+            player.x += (dx / dist) * 3;
+            player.y += (dy / dist) * 3;
+            player.animFrame += 0.15;
+            player.isMoving = true;
+        } else {
+            player.x = tx;
+            player.y = ty;
+            player.tileX = next.x;
+            player.tileY = next.y;
+            player.path.shift();
+            if (player.path.length === 0) {
+                player.isMoving = false;
+                player.animFrame = 0;
+            }
+        }
+    }
+
+    // Update camera
+    camera.x = player.x - camera.width / 2 + 16;
+    camera.y = player.y - camera.height / 2 + 24;
+    camera.x = Math.max(0, Math.min(camera.x, MAP_WIDTH * TILE_SIZE - camera.width));
+    camera.y = Math.max(0, Math.min(camera.y, MAP_HEIGHT * TILE_SIZE - camera.height));
+}
+
+function renderGame() {
+    gameCtx.fillStyle = '#1a1a2e';
+    gameCtx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+    // Draw tiles
+    const startTX = Math.floor(camera.x / TILE_SIZE);
+    const startTY = Math.floor(camera.y / TILE_SIZE);
+    const endTX = Math.ceil((camera.x + camera.width) / TILE_SIZE) + 1;
+    const endTY = Math.ceil((camera.y + camera.height) / TILE_SIZE) + 1;
+
+    for (let y = startTY; y < endTY && y < MAP_HEIGHT; y++) {
+        for (let x = startTX; x < endTX && x < MAP_WIDTH; x++) {
+            if (x < 0 || y < 0) continue;
+            drawTile(gameCtx, mapTiles[y][x], x * TILE_SIZE - camera.x, y * TILE_SIZE - camera.y);
+        }
+    }
+
+    // Draw objects
+    for (const obj of mapObjects) {
+        const sx = obj.x * TILE_SIZE - camera.x;
+        const sy = obj.y * TILE_SIZE - camera.y;
+        if (sx > -64 && sx < camera.width + 64 && sy > -64 && sy < camera.height + 64) {
+            drawObject(gameCtx, obj, sx, sy - 16);
+        }
+    }
+
+    // Draw NPCs
+    for (const npc of npcs) {
+        const sx = npc.tileX * TILE_SIZE - camera.x;
+        const sy = npc.tileY * TILE_SIZE - camera.y;
+        if (sx > -64 && sx < camera.width + 64 && sy > -64 && sy < camera.height + 64) {
+            drawNPC(gameCtx, npc, sx, sy - 16);
+        }
+    }
+
+    // Draw player
+    const psx = player.x - camera.x;
+    const psy = player.y - camera.y;
+    drawCharacter(gameCtx, character, psx, psy - 16, 1, player.direction, player.isMoving ? player.animFrame : 0);
+
+    // Player name
+    gameCtx.fillStyle = '#0f0';
+    gameCtx.font = 'bold 12px Arial';
+    gameCtx.textAlign = 'center';
+    gameCtx.fillText(character.name, psx + 16, psy - 24);
+
+    // Draw destination marker
+    if (player.path.length > 0) {
+        const last = player.path[player.path.length - 1];
+        gameCtx.strokeStyle = '#FFD700';
+        gameCtx.lineWidth = 2;
+        gameCtx.strokeRect(last.x * TILE_SIZE - camera.x, last.y * TILE_SIZE - camera.y, TILE_SIZE, TILE_SIZE);
+    }
+
+    // Draw minimap
+    minimapCtx.fillStyle = '#1a3a1a';
+    minimapCtx.fillRect(0, 0, 150, 150);
+    const scale = 3;
+    const offX = 75 - player.tileX * scale;
+    const offY = 75 - player.tileY * scale;
+
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            const mx = x * scale + offX;
+            const my = y * scale + offY;
+            if (mx < -scale || mx > 150 || my < -scale || my > 150) continue;
+
+            const t = mapTiles[y][x];
+            minimapCtx.fillStyle = t === 1 ? '#2980b9' : t === 2 ? '#f1c40f' : t === 3 ? '#7f8c8d' : t === 6 ? '#bdc3c7' : '#27ae60';
+            minimapCtx.fillRect(mx, my, scale, scale);
+        }
+    }
+
+    // Player dot
+    minimapCtx.fillStyle = '#fff';
+    minimapCtx.beginPath();
+    minimapCtx.arc(75, 75, 4, 0, Math.PI * 2);
+    minimapCtx.fill();
+
+    // NPC dots
+    minimapCtx.fillStyle = '#ffd700';
+    for (const npc of npcs) {
+        minimapCtx.beginPath();
+        minimapCtx.arc(npc.tileX * scale + offX, npc.tileY * scale + offY, 3, 0, Math.PI * 2);
+        minimapCtx.fill();
+    }
+}
+
+function gameLoop() {
+    updateGame();
+    renderGame();
+    requestAnimationFrame(gameLoop);
+}
+
+// ==================== UI ====================
+function addChatMessage(msg, type = 'system') {
+    const div = document.createElement('div');
+    div.className = `chat-message ${type}`;
+    div.textContent = msg;
+    document.getElementById('chat-messages').appendChild(div);
+    document.getElementById('chat-messages').scrollTop = 99999;
+}
+
+function showDialogue(npcName, text, options, type) {
+    const box = document.getElementById('dialogue-box');
+    box.classList.remove('hidden');
+    document.getElementById('npc-name').textContent = npcName;
+    document.getElementById('dialogue-text').textContent = text;
+    document.getElementById('npc-portrait').textContent = { guide: '👴', fishing: '🎣', cooking: '👨‍🍳', woodcutting: '🪓' }[type] || '👤';
+
+    const optDiv = document.getElementById('dialogue-options');
+    optDiv.innerHTML = '';
+    for (const opt of options) {
+        const btn = document.createElement('button');
+        btn.className = 'dialogue-option';
+        btn.textContent = opt.text;
+        btn.onclick = opt.action;
+        optDiv.appendChild(btn);
+    }
+}
+
+function hideDialogue() {
+    document.getElementById('dialogue-box').classList.add('hidden');
+}
+
+function updateInventoryUI() {
+    const grid = document.getElementById('inventory-grid');
+    grid.innerHTML = '';
+    for (let i = 0; i < 28; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'inventory-slot' + (player.inventory[i] ? ' filled' : '');
+        slot.textContent = player.inventory[i]?.icon || '';
+        slot.title = player.inventory[i]?.name || '';
+        grid.appendChild(slot);
+    }
+}
+
+function addToInventory(item) {
+    const idx = player.inventory.findIndex(s => s === null);
+    if (idx !== -1) {
+        player.inventory[idx] = item;
+        updateInventoryUI();
+        return true;
+    }
+    addChatMessage('Inventory is full!', 'system');
+    return false;
+}
+
+function showTutorial(title, text) {
+    document.getElementById('tutorial-title').textContent = title;
+    document.getElementById('tutorial-text').textContent = text;
+    document.getElementById('tutorial-overlay').classList.remove('hidden');
+}
+
+function hideTutorial() {
+    document.getElementById('tutorial-overlay').classList.add('hidden');
+}
+
+// ==================== INTERACTIONS ====================
+function talkToNPC(npc) {
+    if (npc.id === 'guide') {
+        showDialogue(npc.name, "Welcome to Tutorial Island! I'll teach you the basics. Talk to the other tutors to learn Fishing, Cooking, and Woodcutting!", [
+            { text: "Where do I start?", action: () => { hideDialogue(); addChatMessage("Visit the Fishing Tutor at the dock to the east!", 'npc'); }},
+            { text: "Thanks!", action: hideDialogue }
+        ], npc.type);
+    } else if (npc.id === 'fishing') {
+        showDialogue(npc.name, "Want to learn fishing? Click on the bubbling water nearby to catch shrimp!", [
+            { text: "Give me a net!", action: () => { hideDialogue(); addToInventory({ id: 'net', name: 'Fishing Net', icon: '🥅' }); addChatMessage("You got a fishing net!", 'system'); }},
+            { text: "Maybe later.", action: hideDialogue }
+        ], npc.type);
+    } else if (npc.id === 'cooking') {
+        showDialogue(npc.name, "I can teach you to cook! If you have raw fish, click on the fire to cook it.", [
+            { text: "I understand!", action: hideDialogue },
+            { text: "Goodbye.", action: hideDialogue }
+        ], npc.type);
+    } else if (npc.id === 'woodcutting') {
+        showDialogue(npc.name, "Woodcutting is simple - click on trees to chop them! Here, take this axe.", [
+            { text: "Thanks for the axe!", action: () => { hideDialogue(); addToInventory({ id: 'axe', name: 'Bronze Axe', icon: '🪓' }); addChatMessage("You got an axe!", 'system'); }},
+            { text: "Not now.", action: hideDialogue }
+        ], npc.type);
+    }
+}
+
+function interactWithObject(obj) {
+    if (obj.type === 'sign') {
+        addChatMessage(obj.text, 'system');
+    } else if (obj.type === 'fishing_spot') {
+        if (!player.inventory.find(i => i?.id === 'net')) {
+            addChatMessage("You need a fishing net! Talk to the Fishing Tutor.", 'system');
+            return;
+        }
+        addChatMessage("You catch some shrimp!", 'system');
+        addToInventory({ id: 'raw_shrimp', name: 'Raw Shrimp', icon: '🦐' });
+        player.stats.fishing++;
+        document.getElementById('stat-fishing').textContent = player.stats.fishing;
+    } else if (obj.type === 'fire') {
+        const idx = player.inventory.findIndex(i => i?.id === 'raw_shrimp');
+        if (idx === -1) {
+            addChatMessage("You need raw fish to cook.", 'system');
+            return;
+        }
+        player.inventory[idx] = { id: 'cooked_shrimp', name: 'Cooked Shrimp', icon: '🍤' };
+        updateInventoryUI();
+        addChatMessage("You cook the shrimp!", 'system');
+        player.stats.cooking++;
+        document.getElementById('stat-cooking').textContent = player.stats.cooking;
+    } else if (obj.type === 'tree') {
+        if (!player.inventory.find(i => i?.id === 'axe')) {
+            addChatMessage("You need an axe! Talk to the Woodcutting Tutor.", 'system');
+            return;
+        }
+        addChatMessage("You chop down the tree and get some logs!", 'system');
+        addToInventory({ id: 'logs', name: 'Logs', icon: '🪵' });
+        player.stats.woodcutting++;
+        document.getElementById('stat-woodcutting').textContent = player.stats.woodcutting;
+    }
+}
+
+// ==================== INPUT ====================
+function handleCanvasClick(e) {
+    const rect = gameCanvas.getBoundingClientRect();
+    const worldX = e.clientX - rect.left + camera.x;
+    const worldY = e.clientY - rect.top + camera.y;
+    const tileX = Math.floor(worldX / TILE_SIZE);
+    const tileY = Math.floor(worldY / TILE_SIZE);
+
+    // Check NPCs
+    for (const npc of npcs) {
+        if (Math.abs(npc.tileX - tileX) <= 1 && Math.abs(npc.tileY - tileY) <= 1) {
+            const path = findPath(player.tileX, player.tileY, npc.tileX, npc.tileY + 1);
+            if (path) {
+                player.path = path;
+                setTimeout(() => { if (!player.isMoving) talkToNPC(npc); }, 500);
+            }
+            return;
+        }
+    }
+
+    // Check objects
+    for (const obj of mapObjects) {
+        if (Math.abs(obj.x - tileX) <= 1 && Math.abs(obj.y - tileY) <= 1 && obj.action) {
+            const targetX = obj.x + (obj.x > player.tileX ? -1 : 1);
+            const path = findPath(player.tileX, player.tileY, isWalkable(targetX, obj.y) ? targetX : obj.x, obj.y + 1);
+            if (path) {
+                player.path = path;
+                setTimeout(() => { if (!player.isMoving) interactWithObject(obj); }, 500);
+            } else {
+                interactWithObject(obj);
+            }
+            return;
+        }
+    }
+
+    // Move
+    const path = findPath(player.tileX, player.tileY, tileX, tileY);
+    if (path) player.path = path;
+}
+
+// ==================== INIT ====================
+function initCharacterCreator() {
+    const preview = document.getElementById('character-preview');
+    const ctx = preview.getContext('2d');
+
+    function updatePreview() {
+        ctx.fillStyle = '#87CEEB';
+        ctx.fillRect(0, 0, 128, 96);
+        ctx.fillStyle = '#90EE90';
+        ctx.fillRect(0, 96, 128, 96);
+        drawCharacter(ctx, character, 32, 70, 2, 'down', 0);
+    }
+
+    document.getElementById('character-name').addEventListener('input', e => { character.name = e.target.value || 'Adventurer'; });
+
+    document.querySelectorAll('[data-option="gender"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('[data-option="gender"]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            character.gender = btn.dataset.value;
+            updatePreview();
+        });
+    });
+
+    document.querySelectorAll('[data-option="skin"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('[data-option="skin"]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            character.skin = parseInt(btn.dataset.value);
+            updatePreview();
+        });
+    });
+
+    document.querySelectorAll('[data-option="hairColor"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('[data-option="hairColor"]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            character.hairColor = parseInt(btn.dataset.value);
+            updatePreview();
+        });
+    });
+
+    document.querySelectorAll('[data-option="shirt"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('[data-option="shirt"]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            character.shirt = parseInt(btn.dataset.value);
+            updatePreview();
+        });
+    });
+
+    document.querySelectorAll('[data-option="pants"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('[data-option="pants"]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            character.pants = parseInt(btn.dataset.value);
+            updatePreview();
+        });
+    });
+
+    document.getElementById('hair-prev').addEventListener('click', () => {
+        character.hairStyle = (character.hairStyle - 1 + HAIR_STYLES.length) % HAIR_STYLES.length;
+        document.getElementById('hair-name').textContent = HAIR_STYLES[character.hairStyle];
+        updatePreview();
+    });
+
+    document.getElementById('hair-next').addEventListener('click', () => {
+        character.hairStyle = (character.hairStyle + 1) % HAIR_STYLES.length;
+        document.getElementById('hair-name').textContent = HAIR_STYLES[character.hairStyle];
+        updatePreview();
+    });
+
+    document.getElementById('start-game').addEventListener('click', startGame);
+
+    updatePreview();
+}
+
+function startGame() {
+    if (!character.name) character.name = 'Adventurer';
+
+    document.getElementById('character-creator').classList.remove('active');
+    document.getElementById('game-screen').classList.add('active');
+
+    gameCanvas = document.getElementById('game-canvas');
+    gameCtx = gameCanvas.getContext('2d');
+    minimapCanvas = document.getElementById('minimap');
+    minimapCtx = minimapCanvas.getContext('2d');
+
+    gameCanvas.width = window.innerWidth;
+    gameCanvas.height = window.innerHeight;
+    camera.width = gameCanvas.width;
+    camera.height = gameCanvas.height;
+
+    window.addEventListener('resize', () => {
+        gameCanvas.width = window.innerWidth;
+        gameCanvas.height = window.innerHeight;
+        camera.width = gameCanvas.width;
+        camera.height = gameCanvas.height;
+    });
+
+    generateMap();
+
+    document.getElementById('player-name-display').textContent = character.name;
+    updateInventoryUI();
+
+    // Show inventory panel by default
+    document.getElementById('inventory-panel').classList.add('visible');
+    document.getElementById('btn-inventory').classList.add('active');
+
+    // Setup UI buttons
+    document.getElementById('btn-stats').addEventListener('click', () => {
+        document.getElementById('stats-panel').classList.toggle('visible');
+        document.getElementById('inventory-panel').classList.remove('visible');
+        document.getElementById('btn-stats').classList.toggle('active');
+        document.getElementById('btn-inventory').classList.remove('active');
+    });
+
+    document.getElementById('btn-inventory').addEventListener('click', () => {
+        document.getElementById('inventory-panel').classList.toggle('visible');
+        document.getElementById('stats-panel').classList.remove('visible');
+        document.getElementById('btn-inventory').classList.toggle('active');
+        document.getElementById('btn-stats').classList.remove('active');
+    });
+
+    document.getElementById('btn-map').addEventListener('click', () => {
+        document.getElementById('minimap-container').style.display =
+            document.getElementById('minimap-container').style.display === 'none' ? 'block' : 'none';
+    });
+
+    gameCanvas.addEventListener('click', handleCanvasClick);
+
+    document.getElementById('tutorial-continue').addEventListener('click', hideTutorial);
+
+    // Show welcome
+    showTutorial('Welcome to Tutorial Island!', 'Click on the map to move. Talk to NPCs (yellow markers) to learn skills like Fishing, Cooking, and Woodcutting!');
+
+    addChatMessage('Welcome, ' + character.name + '!', 'system');
+    addChatMessage('Click to move. Talk to NPCs to learn skills!', 'system');
+
+    gameLoop();
+}
+
+// Start
+document.addEventListener('DOMContentLoaded', initCharacterCreator);
+</script>
+</body>
+</html>
