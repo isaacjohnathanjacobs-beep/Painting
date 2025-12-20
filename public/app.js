@@ -728,6 +728,9 @@ async function loadEmployees() {
   }
 }
 
+// Store employee calendar data globally for quick updates
+let employeeCalendarData = {};
+
 async function displayEmployees(employees) {
   const employeesList = document.getElementById('employees-list');
 
@@ -760,6 +763,9 @@ async function displayEmployees(employees) {
     console.error('Error loading jobs:', error);
   }
 
+  // Store jobs globally for quick access
+  window.activeJobs = jobs;
+
   // Generate next 14 days for calendar
   const today = new Date();
   const calendarDays = [];
@@ -789,6 +795,9 @@ async function displayEmployees(employees) {
       });
     });
 
+    // Store for quick updates
+    employeeCalendarData[emp.id] = { assignments: empAssignments, dateJobMap, jobs };
+
     // Build mini calendar with assignment indicators
     const calendarHTML = `
       <div class="employee-calendar" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1);">
@@ -799,28 +808,11 @@ async function displayEmployees(employees) {
             ${jobs.map(j => `<option value="${j.id}">${j.client_name}</option>`).join('')}
           </select>
         </div>
-        <div class="mini-cal-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 0.75rem;">
-          ${calendarDays.map(day => {
-            const jobsOnDay = dateJobMap[day.date] || [];
-            const hasJob = jobsOnDay.length > 0;
-            const jobNames = jobsOnDay.map(j => j.name).join(', ');
-            return `
-              <div class="mini-cal-day ${hasJob ? 'has-job' : ''}"
-                   data-date="${day.date}"
-                   data-employee="${emp.id}"
-                   onclick="toggleEmployeeDate(${emp.id}, '${day.date}')"
-                   title="${hasJob ? jobNames : 'Click to assign'}"
-                   style="text-align: center; padding: 0.4rem 0.2rem; border-radius: 4px; cursor: pointer;
-                          background: ${hasJob ? 'var(--primary)' : 'var(--bg-tertiary)'};
-                          color: ${hasJob ? 'white' : 'var(--text-secondary)'};">
-                <div style="font-weight: 600;">${day.dayNum}</div>
-                <div style="font-size: 0.65rem; opacity: 0.8;">${day.dayName}</div>
-              </div>
-            `;
-          }).join('')}
+        <div id="cal-grid-${emp.id}" class="mini-cal-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 0.75rem;">
+          ${calendarDays.map(day => renderCalendarDay(emp.id, day, dateJobMap)).join('')}
         </div>
         <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
-          Click dates to toggle assignment for selected job
+          Select a job, then click dates to assign
         </div>
       </div>
     `;
@@ -858,14 +850,45 @@ async function displayEmployees(employees) {
   employeesList.innerHTML = employeesHTML;
 }
 
-// Toggle employee assignment for a specific date
+// Render a single calendar day cell
+function renderCalendarDay(empId, day, dateJobMap) {
+  const jobsOnDay = dateJobMap[day.date] || [];
+  const hasJob = jobsOnDay.length > 0;
+  const firstJob = jobsOnDay[0];
+  const jobLabel = firstJob ? (firstJob.name.length > 8 ? firstJob.name.substring(0, 7) + '…' : firstJob.name) : '';
+  const jobNames = jobsOnDay.map(j => j.name).join(', ');
+
+  return `
+    <div class="mini-cal-day ${hasJob ? 'has-job' : ''}"
+         id="cal-day-${empId}-${day.date}"
+         data-date="${day.date}"
+         data-employee="${empId}"
+         onclick="toggleEmployeeDate(${empId}, '${day.date}')"
+         title="${hasJob ? jobNames : 'Click to assign'}"
+         style="text-align: center; padding: 0.3rem 0.1rem; border-radius: 4px; cursor: pointer;
+                background: ${hasJob ? 'var(--primary)' : 'var(--bg-tertiary)'};
+                color: ${hasJob ? 'white' : 'var(--text-secondary)'}; min-height: 50px;">
+      <div style="font-weight: 600; font-size: 0.85rem;">${day.dayNum}</div>
+      <div style="font-size: 0.6rem; opacity: 0.7;">${day.dayName}</div>
+      ${hasJob ? `<div style="font-size: 0.55rem; margin-top: 2px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${jobLabel}</div>` : ''}
+    </div>
+  `;
+}
+
+// Toggle employee assignment for a specific date (optimized for multi-select)
 async function toggleEmployeeDate(employeeId, dateStr) {
   const jobSelect = document.getElementById(`job-select-${employeeId}`);
   const jobId = jobSelect?.value;
+  const jobName = jobSelect?.options[jobSelect.selectedIndex]?.text;
 
   if (!jobId) {
     alert('Please select a job first');
     return;
+  }
+
+  const dayEl = document.getElementById(`cal-day-${employeeId}-${dateStr}`);
+  if (dayEl) {
+    dayEl.style.opacity = '0.5'; // Visual feedback
   }
 
   try {
@@ -887,11 +910,13 @@ async function toggleEmployeeDate(employeeId, dateStr) {
 
     // Toggle the date
     const dateIndex = currentDates.indexOf(dateStr);
+    let adding = false;
     if (dateIndex > -1) {
       currentDates.splice(dateIndex, 1); // Remove date
     } else {
       currentDates.push(dateStr); // Add date
-      currentDates.sort(); // Keep dates sorted
+      currentDates.sort();
+      adding = true;
     }
 
     // Update the dates
@@ -901,11 +926,36 @@ async function toggleEmployeeDate(employeeId, dateStr) {
       body: JSON.stringify({ dates: currentDates })
     });
 
-    // Reload employees to refresh the calendar
-    loadEmployees();
+    // Update UI immediately without full reload
+    if (dayEl) {
+      const dateObj = new Date(dateStr + 'T00:00:00');
+      const dayInfo = {
+        date: dateStr,
+        dayName: dateObj.toLocaleDateString('en-US', { weekday: 'short' }),
+        dayNum: dateObj.getDate()
+      };
+
+      // Update local data
+      const data = employeeCalendarData[employeeId];
+      if (data) {
+        if (adding) {
+          if (!data.dateJobMap[dateStr]) data.dateJobMap[dateStr] = [];
+          data.dateJobMap[dateStr].push({ id: parseInt(jobId), name: jobName });
+        } else {
+          if (data.dateJobMap[dateStr]) {
+            data.dateJobMap[dateStr] = data.dateJobMap[dateStr].filter(j => j.id !== parseInt(jobId));
+            if (data.dateJobMap[dateStr].length === 0) delete data.dateJobMap[dateStr];
+          }
+        }
+        dayEl.outerHTML = renderCalendarDay(employeeId, dayInfo, data.dateJobMap);
+      } else {
+        dayEl.style.opacity = '1';
+      }
+    }
   } catch (error) {
     console.error('Error toggling date assignment:', error);
     alert('Error updating assignment');
+    if (dayEl) dayEl.style.opacity = '1';
   }
 }
 
