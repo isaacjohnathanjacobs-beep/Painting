@@ -750,69 +750,80 @@ async function displayEmployees(employees) {
     console.error('Error loading calendar assignments:', error);
   }
 
-  // Fetch jobs for display
+  // Fetch jobs for display (only active jobs)
   let jobs = [];
   try {
     const response = await fetch('/api/jobs');
-    jobs = await response.json();
+    const allJobs = await response.json();
+    jobs = allJobs.filter(j => j.status !== 'completed' && j.status !== 'cancelled');
   } catch (error) {
     console.error('Error loading jobs:', error);
+  }
+
+  // Generate next 14 days for calendar
+  const today = new Date();
+  const calendarDays = [];
+  for (let i = 0; i < 14; i++) {
+    const date = new Date(today);
+    date.setDate(date.getDate() + i);
+    calendarDays.push({
+      date: formatDate(date),
+      dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
+      dayNum: date.getDate(),
+      month: date.toLocaleDateString('en-US', { month: 'short' })
+    });
   }
 
   const employeesHTML = employees.map(emp => {
     // Get assignments for this employee
     const empAssignments = assignments.filter(a => a.employee_id === emp.id);
 
-    // Get upcoming dates (next 14 days)
-    const today = new Date();
-    const upcomingDates = [];
-    for (let i = 0; i < 14; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() + i);
-      upcomingDates.push(formatDate(date));
-    }
-
-    // Build mini calendar HTML
-    let calendarHTML = '';
-    if (empAssignments.length > 0) {
-      const assignedDates = new Set();
-      const dateJobs = {};
-
-      empAssignments.forEach(a => {
-        const dates = safeParseDates(a.assigned_dates);
-        dates.forEach(d => {
-          assignedDates.add(d);
-          if (!dateJobs[d]) dateJobs[d] = [];
-          const job = jobs.find(j => j.id === a.job_id);
-          if (job) dateJobs[d].push(job.client_name);
-        });
+    // Build a map of dates to jobs for this employee
+    const dateJobMap = {};
+    empAssignments.forEach(a => {
+      const dates = safeParseDates(a.assigned_dates);
+      dates.forEach(d => {
+        if (!dateJobMap[d]) dateJobMap[d] = [];
+        const job = jobs.find(j => j.id === a.job_id);
+        if (job) dateJobMap[d].push({ id: a.job_id, name: job.client_name });
       });
+    });
 
-      // Filter to upcoming assigned dates
-      const upcomingAssigned = upcomingDates.filter(d => assignedDates.has(d));
-
-      if (upcomingAssigned.length > 0) {
-        calendarHTML = `
-          <div class="mini-calendar">
-            <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--primary);">📅 Upcoming Schedule</h4>
-            <div class="mini-calendar-dates">
-              ${upcomingAssigned.slice(0, 7).map(dateStr => {
-                const date = new Date(dateStr + 'T00:00:00');
-                const jobsList = dateJobs[dateStr] || [];
-                const jobsText = jobsList.slice(0, 2).join(', ');
-                const moreText = jobsList.length > 2 ? ` +${jobsList.length - 2} more` : '';
-                return `
-                  <div class="mini-calendar-date" title="${jobsText}${moreText}">
-                    <span class="date-label">${formatDateDisplay(date).substring(0, 6)}</span>
-                    <span class="date-job">${jobsList[0] || 'Assigned'}</span>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-          </div>
-        `;
-      }
-    }
+    // Build mini calendar with assignment indicators
+    const calendarHTML = `
+      <div class="employee-calendar" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <h4 style="margin: 0; font-size: 0.9rem; color: var(--primary);">📅 Schedule & Assign</h4>
+          <select id="job-select-${emp.id}" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-secondary);">
+            <option value="">Select job...</option>
+            ${jobs.map(j => `<option value="${j.id}">${j.client_name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="mini-cal-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 0.75rem;">
+          ${calendarDays.map(day => {
+            const jobsOnDay = dateJobMap[day.date] || [];
+            const hasJob = jobsOnDay.length > 0;
+            const jobNames = jobsOnDay.map(j => j.name).join(', ');
+            return `
+              <div class="mini-cal-day ${hasJob ? 'has-job' : ''}"
+                   data-date="${day.date}"
+                   data-employee="${emp.id}"
+                   onclick="toggleEmployeeDate(${emp.id}, '${day.date}')"
+                   title="${hasJob ? jobNames : 'Click to assign'}"
+                   style="text-align: center; padding: 0.4rem 0.2rem; border-radius: 4px; cursor: pointer;
+                          background: ${hasJob ? 'var(--primary)' : 'var(--bg-tertiary)'};
+                          color: ${hasJob ? 'white' : 'var(--text-secondary)'};">
+                <div style="font-weight: 600;">${day.dayNum}</div>
+                <div style="font-size: 0.65rem; opacity: 0.8;">${day.dayName}</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
+          Click dates to toggle assignment for selected job
+        </div>
+      </div>
+    `;
 
     return `
       <div class="card">
@@ -845,6 +856,57 @@ async function displayEmployees(employees) {
   }).join('');
 
   employeesList.innerHTML = employeesHTML;
+}
+
+// Toggle employee assignment for a specific date
+async function toggleEmployeeDate(employeeId, dateStr) {
+  const jobSelect = document.getElementById(`job-select-${employeeId}`);
+  const jobId = jobSelect?.value;
+
+  if (!jobId) {
+    alert('Please select a job first');
+    return;
+  }
+
+  try {
+    // Get current assignments for this employee and job
+    const calendarRes = await fetch('/api/calendar');
+    const assignments = await calendarRes.json();
+
+    const existingAssignment = assignments.find(a =>
+      a.job_id === parseInt(jobId) && a.employee_id === employeeId
+    );
+
+    let currentDates = [];
+    if (existingAssignment) {
+      currentDates = safeParseDates(existingAssignment.assigned_dates);
+    } else {
+      // Create the assignment first
+      await fetch(`/api/jobs/${jobId}/assign/${employeeId}`, { method: 'POST' });
+    }
+
+    // Toggle the date
+    const dateIndex = currentDates.indexOf(dateStr);
+    if (dateIndex > -1) {
+      currentDates.splice(dateIndex, 1); // Remove date
+    } else {
+      currentDates.push(dateStr); // Add date
+      currentDates.sort(); // Keep dates sorted
+    }
+
+    // Update the dates
+    await fetch(`/api/jobs/${jobId}/assign/${employeeId}/dates`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dates: currentDates })
+    });
+
+    // Reload employees to refresh the calendar
+    loadEmployees();
+  } catch (error) {
+    console.error('Error toggling date assignment:', error);
+    alert('Error updating assignment');
+  }
 }
 
 function showEmployeeModal(employeeId = null) {
