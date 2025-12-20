@@ -988,10 +988,6 @@ function setupForms() {
         });
         const newJob = await response.json();
         savedJobId = newJob.id;
-        // Keep new job's checklist open
-        if (jobData.checklist && jobData.checklist.length > 0) {
-          openChecklists.add(savedJobId);
-        }
       }
 
       closeJobModal();
