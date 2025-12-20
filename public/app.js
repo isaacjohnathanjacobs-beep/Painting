@@ -747,18 +747,20 @@ async function displayEmployees(employees) {
   // Fetch calendar assignments for mini calendar
   let assignments = [];
   try {
-    const response = await fetch('/api/calendar');
+    const response = await fetch(`${API_URL}/calendar`);
     assignments = await response.json();
   } catch (error) {
     console.error('Error loading calendar assignments:', error);
   }
 
-  // Fetch jobs for display (only active jobs)
+  // Fetch jobs for display
   let jobs = [];
   try {
-    const response = await fetch('/api/jobs');
+    const response = await fetch(`${API_URL}/jobs`);
     const allJobs = await response.json();
-    jobs = allJobs.filter(j => j.status !== 'completed' && j.status !== 'cancelled');
+    // Show all jobs except completed ones
+    jobs = allJobs.filter(j => j.status !== 'completed');
+    console.log(`[displayEmployees] Loaded ${jobs.length} jobs for assignment (${allJobs.length} total)`);
   } catch (error) {
     console.error('Error loading jobs:', error);
   }
@@ -893,7 +895,7 @@ async function toggleEmployeeDate(employeeId, dateStr) {
 
   try {
     // Get current assignments for this employee and job
-    const calendarRes = await fetch('/api/calendar');
+    const calendarRes = await fetch(`${API_URL}/calendar`);
     const assignments = await calendarRes.json();
 
     const existingAssignment = assignments.find(a =>
@@ -905,7 +907,7 @@ async function toggleEmployeeDate(employeeId, dateStr) {
       currentDates = safeParseDates(existingAssignment.assigned_dates);
     } else {
       // Create the assignment first
-      await fetch(`/api/jobs/${jobId}/assign/${employeeId}`, { method: 'POST' });
+      await fetch(`${API_URL}/jobs/${jobId}/assign/${employeeId}`, { method: 'POST' });
     }
 
     // Toggle the date
@@ -920,7 +922,7 @@ async function toggleEmployeeDate(employeeId, dateStr) {
     }
 
     // Update the dates
-    await fetch(`/api/jobs/${jobId}/assign/${employeeId}/dates`, {
+    await fetch(`${API_URL}/jobs/${jobId}/assign/${employeeId}/dates`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dates: currentDates })
