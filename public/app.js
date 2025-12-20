@@ -513,9 +513,9 @@ async function displayJobs(jobs) {
               }
 
               return `
-                <div class="job-schedule-calendar" style="flex: 0 0 auto; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px;">
-                  <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; color: var(--primary);">📅 Work Schedule</h4>
-                  <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 0.75rem;">
+                <div class="job-schedule-calendar" style="flex: 0 0 auto; padding: 1.25rem; background: var(--bg-tertiary); border-radius: 8px;">
+                  <h4 style="margin: 0 0 0.75rem 0; font-size: 1rem; color: var(--primary);">📅 Work Schedule</h4>
+                  <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; font-size: 0.85rem;">
                     ${calendarDays.map(day => {
                       const empsOnDay = dateEmployees[day.date] || [];
                       const hasWorkers = empsOnDay.length > 0;
@@ -524,16 +524,17 @@ async function displayJobs(jobs) {
                       const moreCount = empsOnDay.length > 1 ? `+${empsOnDay.length - 1}` : '';
                       return `
                         <div title="${hasWorkers ? empNames : 'No workers assigned'}"
-                             style="text-align: center; padding: 0.4rem 0.2rem; border-radius: 4px;
+                             style="text-align: center; padding: 0.5rem 0.3rem; border-radius: 4px;
                                     background: ${hasWorkers ? 'var(--primary)' : 'var(--bg-secondary)'};
-                                    color: ${hasWorkers ? 'white' : 'var(--text-muted)'}; min-height: 55px;">
-                          <div style="font-weight: 600; font-size: 0.9rem;">${day.dayNum}</div>
-                          <div style="font-size: 0.6rem; opacity: 0.7;">${day.dayName}</div>
-                          ${hasWorkers ? `<div style="font-size: 0.55rem; margin-top: 2px; font-weight: 500;">${displayName}${moreCount}</div>` : ''}
+                                    color: ${hasWorkers ? 'white' : 'var(--text-muted)'}; min-height: 60px; min-width: 42px;">
+                          <div style="font-weight: 600; font-size: 1rem;">${day.dayNum}</div>
+                          <div style="font-size: 0.65rem; opacity: 0.7;">${day.dayName}</div>
+                          ${hasWorkers ? `<div style="font-size: 0.6rem; margin-top: 2px; font-weight: 500;">${displayName}${moreCount}</div>` : ''}
                         </div>
                       `;
                     }).join('')}
                   </div>
+                  <button class="btn btn-primary" style="width: 100%; margin-top: 1rem; padding: 0.6rem 1rem;" onclick="manageAssignments(${job.id})">Assign Employees</button>
                 </div>
               `;
             })()}
@@ -542,7 +543,6 @@ async function displayJobs(jobs) {
           ${checklist.length > 0 ? await generateProfessionalTaskDisplay(job.id, checklist) : ''}
         </div>
         <div class="card-actions">
-          <button class="btn btn-secondary btn-sm" onclick="manageAssignments(${job.id})">Assign Employees</button>
           <button class="btn btn-secondary btn-sm" onclick="endOfDayReview(${job.id})" title="Review today's performance and adjust ratings">📊 Day Review</button>
           <button class="btn btn-secondary btn-sm" onclick="editJob(${job.id})">Edit</button>
           <button class="btn btn-danger btn-sm" onclick="deleteJob(${job.id})">Delete</button>
