@@ -487,8 +487,6 @@ async function displayJobs(jobs) {
             // Get assignments for this job
             const jobAssignments = allAssignments.filter(a => a.job_id === job.id);
 
-            if (jobAssignments.length === 0) return '';
-
             // Collect all assigned dates with employee names
             const dateEmployees = {};
             jobAssignments.forEach(a => {
@@ -500,28 +498,37 @@ async function displayJobs(jobs) {
               });
             });
 
-            // Get upcoming dates
+            // Generate next 14 days for calendar grid
             const today = new Date();
-            const upcomingDates = Object.keys(dateEmployees).filter(dateStr => {
-              const date = new Date(dateStr + 'T00:00:00');
-              return date >= today;
-            }).sort().slice(0, 7);
-
-            if (upcomingDates.length === 0) return '';
+            const calendarDays = [];
+            for (let i = 0; i < 14; i++) {
+              const date = new Date(today);
+              date.setDate(date.getDate() + i);
+              calendarDays.push({
+                date: formatDate(date),
+                dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
+                dayNum: date.getDate()
+              });
+            }
 
             return `
-              <div class="mini-calendar" style="margin-top: 1rem;">
-                <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--primary);">📅 Work Schedule</h4>
-                <div class="mini-calendar-dates">
-                  ${upcomingDates.map(dateStr => {
-                    const date = new Date(dateStr + 'T00:00:00');
-                    const empList = dateEmployees[dateStr];
-                    const empText = empList.slice(0, 2).join(', ');
-                    const moreText = empList.length > 2 ? ` +${empList.length - 2}` : '';
+              <div class="job-schedule-calendar" style="margin-top: 1rem; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px;">
+                <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; color: var(--primary);">📅 Work Schedule</h4>
+                <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 0.75rem;">
+                  ${calendarDays.map(day => {
+                    const empsOnDay = dateEmployees[day.date] || [];
+                    const hasWorkers = empsOnDay.length > 0;
+                    const empNames = empsOnDay.join(', ');
+                    const displayName = empsOnDay.length > 0 ? (empsOnDay[0].length > 6 ? empsOnDay[0].substring(0, 5) + '…' : empsOnDay[0]) : '';
+                    const moreCount = empsOnDay.length > 1 ? `+${empsOnDay.length - 1}` : '';
                     return `
-                      <div class="mini-calendar-date">
-                        <span class="date-label">${formatDateDisplay(date).substring(0, 9)}</span>
-                        <span class="date-job">${empText}${moreText}</span>
+                      <div title="${hasWorkers ? empNames : 'No workers assigned'}"
+                           style="text-align: center; padding: 0.4rem 0.2rem; border-radius: 4px;
+                                  background: ${hasWorkers ? 'var(--primary)' : 'var(--bg-secondary)'};
+                                  color: ${hasWorkers ? 'white' : 'var(--text-muted)'}; min-height: 55px;">
+                        <div style="font-weight: 600; font-size: 0.9rem;">${day.dayNum}</div>
+                        <div style="font-size: 0.6rem; opacity: 0.7;">${day.dayName}</div>
+                        ${hasWorkers ? `<div style="font-size: 0.55rem; margin-top: 2px; font-weight: 500;">${displayName}${moreCount}</div>` : ''}
                       </div>
                     `;
                   }).join('')}
