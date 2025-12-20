@@ -440,6 +440,10 @@ async function displayJobs(jobs) {
     // Calculate predicted completion date
     const predictedCompletion = checklist.length > 0 ? await calculatePredictedCompletionDate(job.id, checklist) : null;
 
+    // Calculate bonus (actual if job has actual_hours, potential if in-progress)
+    const actualBonus = calculateJobBonus(job.estimated_hours, job.actual_hours, employees);
+    const potentialBonus = !job.actual_hours && predictedHours ? calculatePotentialBonus(job.estimated_hours, parseFloat(predictedHours), employees) : null;
+
     return `
       <div class="card">
         <div class="card-header">
@@ -473,6 +477,24 @@ async function displayJobs(jobs) {
                 <div class="info-row" style="background: #e3f2fd; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;">
                   <div class="info-item"><span class="info-label">📅 Predicted Completion:</span><span class="info-value" style="font-weight: 600; color: #1976d2;">${predictedCompletion.displayDate} (${predictedCompletion.daysRemaining} days)</span></div>
                   <div class="info-item"><span class="info-label">Daily Rate:</span><span class="info-value">${predictedCompletion.completionRate}% per day</span></div>
+                </div>
+              ` : ''}
+              ${actualBonus ? `
+                <div class="info-row" style="background: ${actualBonus.totalBonus > 0 ? '#fff3e0' : '#ffebee'}; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;">
+                  <div class="info-item"><span class="info-label">💰 Job Bonus:</span><span class="info-value" style="font-weight: 700; color: ${actualBonus.totalBonus > 0 ? '#e65100' : '#c62828'};">$${actualBonus.totalBonus.toFixed(2)}</span></div>
+                  <div class="info-item"><span class="info-label">${actualBonus.totalBonus > 0 ? '⚡ ' + actualBonus.message : actualBonus.message}</span></div>
+                </div>
+                ${actualBonus.perEmployee.length > 0 ? `
+                  <div style="background: #fff8e1; padding: 0.5rem 0.75rem; border-radius: 4px; margin-top: 0.25rem; font-size: 0.85rem;">
+                    <span style="font-weight: 600; color: #f57c00;">Per Employee:</span>
+                    ${actualBonus.perEmployee.map(e => `<span style="margin-left: 0.75rem;">${e.name}: <b>$${e.bonus.toFixed(2)}</b></span>`).join('')}
+                  </div>
+                ` : ''}
+              ` : ''}
+              ${potentialBonus ? `
+                <div class="info-row" style="background: #fffde7; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; border: 1px dashed #fbc02d;">
+                  <div class="info-item"><span class="info-label">💎 Potential Bonus:</span><span class="info-value" style="font-weight: 700; color: #f9a825;">$${potentialBonus.potentialBonus.toFixed(2)}</span></div>
+                  <div class="info-item"><span class="info-label">If completed in predicted time (${potentialBonus.potentialHoursSaved} hrs saved)</span></div>
                 </div>
               ` : ''}
               ${employees.length > 0 ? `
@@ -573,6 +595,76 @@ function calculatePredictedHours(estimatedHours, employees) {
   }
 
   return (estimatedHours / teamEfficiency).toFixed(1);
+}
+
+// Calculate bonus based on job completion speed
+// Bonus rate: $25 per hour saved
+const BONUS_RATE_PER_HOUR = 25;
+
+function calculateJobBonus(estimatedHours, actualHours, employees) {
+  if (!estimatedHours || !actualHours || employees.length === 0) {
+    return null;
+  }
+
+  const hoursSaved = estimatedHours - actualHours;
+
+  if (hoursSaved <= 0) {
+    return {
+      totalBonus: 0,
+      hoursSaved: hoursSaved,
+      perEmployee: [],
+      message: hoursSaved < 0 ? 'Over estimate' : 'On target'
+    };
+  }
+
+  const totalBonus = hoursSaved * BONUS_RATE_PER_HOUR;
+
+  // Calculate each employee's contribution based on their efficiency
+  let totalEfficiency = 0;
+  const employeeEfficiencies = employees.map(emp => {
+    const baseEfficiency = emp.type === 'brush_hand' ? 0.667 : 1.0;
+    const rating = emp.rating || 1.0;
+    const efficiency = baseEfficiency * rating;
+    totalEfficiency += efficiency;
+    return { ...emp, efficiency };
+  });
+
+  // Split bonus proportionally by efficiency contribution
+  const perEmployee = employeeEfficiencies.map(emp => ({
+    id: emp.id,
+    name: emp.name,
+    share: totalEfficiency > 0 ? (emp.efficiency / totalEfficiency) : (1 / employees.length),
+    bonus: totalEfficiency > 0
+      ? Math.round((emp.efficiency / totalEfficiency) * totalBonus * 100) / 100
+      : Math.round((totalBonus / employees.length) * 100) / 100
+  }));
+
+  return {
+    totalBonus: Math.round(totalBonus * 100) / 100,
+    hoursSaved: Math.round(hoursSaved * 10) / 10,
+    perEmployee,
+    message: `${hoursSaved.toFixed(1)} hours under estimate!`
+  };
+}
+
+// Calculate potential bonus for in-progress jobs
+function calculatePotentialBonus(estimatedHours, predictedHours, employees) {
+  if (!estimatedHours || !predictedHours || employees.length === 0) {
+    return null;
+  }
+
+  const potentialHoursSaved = estimatedHours - predictedHours;
+
+  if (potentialHoursSaved <= 0) {
+    return null;
+  }
+
+  const potentialBonus = potentialHoursSaved * BONUS_RATE_PER_HOUR;
+
+  return {
+    potentialBonus: Math.round(potentialBonus * 100) / 100,
+    potentialHoursSaved: Math.round(potentialHoursSaved * 10) / 10
+  };
 }
 
 // Calculate predicted completion date based on actual progress
