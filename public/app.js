@@ -4434,12 +4434,15 @@ function calendarNextWeek() {
   renderCalendar();
 }
 
-// Load calendar when tab is switched
+// Refresh data when tab is switched
 const originalSwitchTab = switchTab;
 window.switchTab = function(tabName) {
   originalSwitchTab(tabName);
   if (tabName === 'calendar') {
     loadCalendar();
+  }
+  if (tabName === 'employees') {
+    loadEmployees(); // Refresh to get latest jobs in dropdown
   }
 };
 
