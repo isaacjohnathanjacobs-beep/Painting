@@ -440,9 +440,8 @@ async function displayJobs(jobs) {
     // Calculate predicted completion date
     const predictedCompletion = checklist.length > 0 ? await calculatePredictedCompletionDate(job.id, checklist) : null;
 
-    // Calculate bonus (actual if job has actual_hours, potential based on predicted hours)
-    const actualBonus = calculateJobBonus(job.estimated_hours, job.actual_hours, employees);
-    const potentialBonus = calculatePotentialBonus(job.estimated_hours, predictedHours ? parseFloat(predictedHours) : null, employees, job.estimated_hours);
+    // Calculate potential bonus based on predicted hours
+    const potentialBonus = calculatePotentialBonus(job.estimated_hours, predictedHours ? parseFloat(predictedHours) : null, employees);
 
     return `
       <div class="card">
@@ -479,19 +478,7 @@ async function displayJobs(jobs) {
                   <div class="info-item"><span class="info-label">Daily Rate:</span><span class="info-value">${predictedCompletion.completionRate}% per day</span></div>
                 </div>
               ` : ''}
-              ${actualBonus ? `
-                <div class="info-row" style="background: ${actualBonus.totalBonus > 0 ? '#fff3e0' : '#ffebee'}; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;">
-                  <div class="info-item"><span class="info-label">💰 Job Bonus:</span><span class="info-value" style="font-weight: 700; color: ${actualBonus.totalBonus > 0 ? '#e65100' : '#c62828'};">$${actualBonus.totalBonus.toFixed(2)}</span></div>
-                  <div class="info-item"><span class="info-label">${actualBonus.totalBonus > 0 ? '⚡ ' + actualBonus.message : actualBonus.message}</span></div>
-                </div>
-                ${actualBonus.perEmployee.length > 0 ? `
-                  <div style="background: #fff8e1; padding: 0.5rem 0.75rem; border-radius: 4px; margin-top: 0.25rem; font-size: 0.85rem;">
-                    <span style="font-weight: 600; color: #f57c00;">Per Employee:</span>
-                    ${actualBonus.perEmployee.map(e => `<span style="margin-left: 0.75rem;">${e.name}: <b>$${e.bonus.toFixed(2)}</b></span>`).join('')}
-                  </div>
-                ` : ''}
-              ` : ''}
-              ${!actualBonus && potentialBonus ? `
+              ${potentialBonus ? `
                 <div class="info-row" style="background: ${potentialBonus.status === 'bonus' ? '#fff3e0' : potentialBonus.status === 'over' ? '#ffebee' : '#f5f5f5'}; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; border: 1px solid ${potentialBonus.status === 'bonus' ? '#ffcc80' : potentialBonus.status === 'over' ? '#ef9a9a' : '#e0e0e0'};">
                   <div class="info-item"><span class="info-label">💎 Potential Bonus:</span><span class="info-value" style="font-weight: 700; color: ${potentialBonus.status === 'bonus' ? '#e65100' : potentialBonus.status === 'over' ? '#c62828' : '#757575'};">$${potentialBonus.potentialBonus.toFixed(2)}</span></div>
                   <div class="info-item"><span class="info-label">${potentialBonus.message}</span></div>
@@ -607,53 +594,7 @@ function calculatePredictedHours(estimatedHours, employees) {
 // Bonus rate: $25 per hour saved
 const BONUS_RATE_PER_HOUR = 25;
 
-function calculateJobBonus(estimatedHours, actualHours, employees) {
-  if (!estimatedHours || !actualHours || employees.length === 0) {
-    return null;
-  }
-
-  const hoursSaved = estimatedHours - actualHours;
-
-  if (hoursSaved <= 0) {
-    return {
-      totalBonus: 0,
-      hoursSaved: hoursSaved,
-      perEmployee: [],
-      message: hoursSaved < 0 ? 'Over estimate' : 'On target'
-    };
-  }
-
-  const totalBonus = hoursSaved * BONUS_RATE_PER_HOUR;
-
-  // Calculate each employee's contribution based on their efficiency
-  let totalEfficiency = 0;
-  const employeeEfficiencies = employees.map(emp => {
-    const baseEfficiency = emp.type === 'brush_hand' ? 0.667 : 1.0;
-    const rating = emp.rating || 1.0;
-    const efficiency = baseEfficiency * rating;
-    totalEfficiency += efficiency;
-    return { ...emp, efficiency };
-  });
-
-  // Split bonus proportionally by efficiency contribution
-  const perEmployee = employeeEfficiencies.map(emp => ({
-    id: emp.id,
-    name: emp.name,
-    share: totalEfficiency > 0 ? (emp.efficiency / totalEfficiency) : (1 / employees.length),
-    bonus: totalEfficiency > 0
-      ? Math.round((emp.efficiency / totalEfficiency) * totalBonus * 100) / 100
-      : Math.round((totalBonus / employees.length) * 100) / 100
-  }));
-
-  return {
-    totalBonus: Math.round(totalBonus * 100) / 100,
-    hoursSaved: Math.round(hoursSaved * 10) / 10,
-    perEmployee,
-    message: `${hoursSaved.toFixed(1)} hours under estimate!`
-  };
-}
-
-// Calculate potential bonus for in-progress jobs - always returns data
+// Calculate potential bonus based on predicted hours - always returns data
 function calculatePotentialBonus(estimatedHours, predictedHours, employees) {
   // Always return bonus info, even if $0
   if (!estimatedHours) {
@@ -838,9 +779,7 @@ async function loadJobData(jobId) {
     document.getElementById('start-date').value = job.start_date || '';
     document.getElementById('end-date').value = job.end_date || '';
     document.getElementById('estimated-hours').value = job.estimated_hours || '';
-    document.getElementById('actual-hours').value = job.actual_hours || '';
     document.getElementById('estimated-cost').value = job.estimated_cost || '';
-    document.getElementById('actual-cost').value = job.actual_cost || '';
 
     // Preserve existing checklists when editing
     let checklist = [];
@@ -1371,9 +1310,7 @@ function setupForms() {
       start_date: document.getElementById('start-date').value,
       end_date: document.getElementById('end-date').value,
       estimated_hours: document.getElementById('estimated-hours').value || null,
-      actual_hours: document.getElementById('actual-hours').value || null,
       estimated_cost: document.getElementById('estimated-cost').value || null,
-      actual_cost: document.getElementById('actual-cost').value || null,
       checklist: checklist,
       materials_checklist: materialsChecklist
     };
@@ -1626,9 +1563,7 @@ function parseEstimateFile(text) {
       start_date: '',
       end_date: '',
       estimated_hours: null,
-      actual_hours: null,
       estimated_cost: estimatedCost,
-      actual_cost: null,
       checklist: checklist
     };
   } catch (error) {
@@ -4458,9 +4393,7 @@ async function createJobFromEstimate() {
   document.getElementById('start-date').value = '';
   document.getElementById('end-date').value = '';
   document.getElementById('estimated-hours').value = calcTotalHours();
-  document.getElementById('actual-hours').value = '';
   document.getElementById('estimated-cost').value = totalPrice.replace(/,/g, '');
-  document.getElementById('actual-cost').value = '';
 
   document.getElementById('job-modal').classList.add('active');
 

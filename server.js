@@ -177,18 +177,18 @@ app.post('/api/jobs', (req, res) => {
 // Update job
 app.put('/api/jobs/:id', (req, res) => {
   const { client_name, client_phone, client_email, address, description, status,
-          estimated_hours, actual_hours, estimated_cost, actual_cost, start_date, end_date, checklist, materials_checklist } = req.body;
+          estimated_hours, estimated_cost, start_date, end_date, checklist, materials_checklist } = req.body;
 
   const checklistJson = checklist ? JSON.stringify(checklist) : '[]';
   const materialsChecklistJson = materials_checklist ? JSON.stringify(materials_checklist) : '[]';
 
   db.run(
     `UPDATE jobs SET client_name = ?, client_phone = ?, client_email = ?, address = ?,
-                     description = ?, status = ?, estimated_hours = ?, actual_hours = ?,
-                     estimated_cost = ?, actual_cost = ?, start_date = ?, end_date = ?, checklist = ?, materials_checklist = ?
+                     description = ?, status = ?, estimated_hours = ?,
+                     estimated_cost = ?, start_date = ?, end_date = ?, checklist = ?, materials_checklist = ?
      WHERE id = ?`,
     [client_name, client_phone, client_email, address, description, status,
-     estimated_hours, actual_hours, estimated_cost, actual_cost, start_date, end_date, checklistJson, materialsChecklistJson, req.params.id],
+     estimated_hours, estimated_cost, start_date, end_date, checklistJson, materialsChecklistJson, req.params.id],
     function(err) {
       if (err) {
         res.status(500).json({ error: err.message });
