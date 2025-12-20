@@ -378,7 +378,7 @@ app.patch('/api/jobs/:id/predictions', (req, res) => {
 
 // Update task completion
 app.patch('/api/jobs/:jobId/tasks/:taskId/complete', (req, res) => {
-  const { completed, completed_by, on_site_employees, completion_date } = req.body;
+  const { completed, completed_by, on_site_employees, completion_date, task, room, percentage } = req.body;
   // on_site_employees is already an array, stringify it for storage
   const onSiteJson = typeof on_site_employees === 'string'
     ? on_site_employees
@@ -408,10 +408,10 @@ app.patch('/api/jobs/:jobId/tasks/:taskId/complete', (req, res) => {
           }
         );
       } else {
-        // Insert new task record
+        // Insert new task record - include task name, room, and percentage
         db.run(
-          'INSERT INTO tasks (job_id, task_id, completed, completed_by, on_site_employees, completion_date) VALUES (?, ?, ?, ?, ?, ?)',
-          [req.params.jobId, req.params.taskId, completed ? 1 : 0, completed_by, onSiteJson, completion_date],
+          'INSERT INTO tasks (job_id, task_id, task, room, percentage, completed, completed_by, on_site_employees, completion_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [req.params.jobId, req.params.taskId, task || 'Unknown Task', room || '', percentage || 0, completed ? 1 : 0, completed_by, onSiteJson, completion_date],
           function(err) {
             if (err) {
               res.status(500).json({ error: err.message });

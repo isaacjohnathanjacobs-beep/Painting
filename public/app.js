@@ -198,7 +198,7 @@ async function generateProfessionalTaskDisplay(jobId, checklist) {
                                id="task-${jobId}-${task.id}"
                                ${task.completed ? 'checked' : ''}
                                ${!isEnabled ? 'disabled' : ''}
-                               onchange="updateProfessionalTask(${jobId}, ${task.id}, this.checked)"
+                               onchange="updateProfessionalTask(${jobId}, ${task.id}, this.checked, ${JSON.stringify(task.task)}, ${JSON.stringify(task.room || '')}, ${task.percentage || 0})"
                                style="margin-top: 0.25rem;">
                         <div style="flex: 1;">
                           <label for="task-${jobId}-${task.id}" style="cursor: ${isEnabled ? 'pointer' : 'not-allowed'}; display: block;">
@@ -1322,9 +1322,9 @@ async function updateChecklistItem(jobId, itemId, completed) {
 }
 
 // Update professional task with employee tracking
-async function updateProfessionalTask(jobId, taskId, completed) {
+async function updateProfessionalTask(jobId, taskId, completed, taskName = '', taskRoom = '', taskPercentage = 0) {
   try {
-    console.log(`[updateProfessionalTask] Starting - jobId: ${jobId}, taskId: ${taskId}, completed: ${completed}`);
+    console.log(`[updateProfessionalTask] Starting - jobId: ${jobId}, taskId: ${taskId}, completed: ${completed}, task: ${taskName}`);
 
     if (completed) {
       // When marking complete, ask which employee completed it
@@ -1401,7 +1401,7 @@ async function updateProfessionalTask(jobId, taskId, completed) {
       const completedByEmployee = employees[empIndex];
 
       // Update task with completed_by info
-      await updateTaskCompletion(jobId, taskId, true, completedByEmployee.id, onSiteToday.map(e => e.id), today);
+      await updateTaskCompletion(jobId, taskId, true, completedByEmployee.id, onSiteToday.map(e => e.id), today, taskName, taskRoom, taskPercentage);
     } else {
       // Marking incomplete - just update the checklist
       await updateChecklistItem(jobId, taskId, false);
@@ -1414,9 +1414,9 @@ async function updateProfessionalTask(jobId, taskId, completed) {
 }
 
 // Update task completion with employee tracking
-async function updateTaskCompletion(jobId, taskId, completed, completedBy, onSiteEmployees, completionDate) {
+async function updateTaskCompletion(jobId, taskId, completed, completedBy, onSiteEmployees, completionDate, taskName = '', taskRoom = '', taskPercentage = 0) {
   try {
-    console.log(`[updateTaskCompletion] Starting - jobId: ${jobId}, taskId: ${taskId}`);
+    console.log(`[updateTaskCompletion] Starting - jobId: ${jobId}, taskId: ${taskId}, task: ${taskName}`);
 
     // Update checklist
     await updateChecklistItem(jobId, taskId, completed);
@@ -1430,7 +1430,10 @@ async function updateTaskCompletion(jobId, taskId, completed, completedBy, onSit
         completed,
         completed_by: completedBy,
         on_site_employees: onSiteEmployees, // Don't stringify - server will do it
-        completion_date: completionDate
+        completion_date: completionDate,
+        task: taskName,
+        room: taskRoom,
+        percentage: taskPercentage
       })
     });
 
