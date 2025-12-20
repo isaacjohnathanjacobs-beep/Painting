@@ -623,12 +623,15 @@ async function calculatePredictedCompletionDate(jobId, checklist) {
 
 async function getJobEmployees(jobId) {
   try {
+    console.log(`[getJobEmployees] Fetching employees for job ${jobId}`);
     const response = await fetch(`${API_URL}/jobs/${jobId}/employees`);
+    console.log(`[getJobEmployees] Response status: ${response.status}`);
     if (!response.ok) {
       console.error('Failed to fetch job employees:', response.statusText);
       return [];
     }
     const data = await response.json();
+    console.log(`[getJobEmployees] Found ${Array.isArray(data) ? data.length : 0} employees:`, data);
     return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error('Error loading job employees:', error);
@@ -1338,8 +1341,9 @@ async function updateProfessionalTask(jobId, taskId, completed, taskName = '', t
       const employees = await getJobEmployees(jobId);
 
       if (employees.length === 0) {
-        alert('No employees assigned to this job. Assign employees first.');
-        loadJobs();
+        // No employees found - still update the checklist, just skip the detailed tracking
+        console.warn(`[updateProfessionalTask] No employees found for job ${jobId}, updating checklist only`);
+        await updateChecklistItem(jobId, taskId, completed);
         return;
       }
 
