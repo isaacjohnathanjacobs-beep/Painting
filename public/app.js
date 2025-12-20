@@ -1020,34 +1020,86 @@ async function deleteEmployee(employeeId) {
 }
 
 // ASSIGNMENT MANAGEMENT
+let assignmentCalendarData = {};
+
 async function manageAssignments(jobId) {
   currentJobForAssignment = jobId;
   const modal = document.getElementById('assign-modal');
 
   try {
-    const [allEmployees, assignedEmployees] = await Promise.all([
+    const [allEmployees, assignedEmployees, jobData] = await Promise.all([
       fetch(`${API_URL}/employees`).then(r => r.json()),
-      fetch(`${API_URL}/jobs/${jobId}/employees`).then(r => r.json())
+      fetch(`${API_URL}/jobs/${jobId}/employees`).then(r => r.json()),
+      fetch(`${API_URL}/jobs/${jobId}`).then(r => r.json())
     ]);
 
-    const assignedIds = new Set(assignedEmployees.map(e => e.id));
+    // Build map of employee assignments with their dates
+    const assignmentMap = {};
+    assignedEmployees.forEach(emp => {
+      assignmentMap[emp.id] = {
+        assigned: true,
+        dates: safeParseDates(emp.assigned_dates)
+      };
+    });
+
+    // Store for quick updates
+    assignmentCalendarData[jobId] = { assignmentMap, allEmployees };
+
+    // Generate next 14 days
+    const today = new Date();
+    const calendarDays = [];
+    for (let i = 0; i < 14; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() + i);
+      calendarDays.push({
+        date: formatDate(date),
+        dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        dayNum: date.getDate()
+      });
+    }
 
     const content = document.getElementById('assign-content');
     content.innerHTML = `
-      <div class="checkbox-list">
-        ${allEmployees.filter(e => e.status === 'active').map(emp => `
-          <div class="checkbox-item">
-            <input type="checkbox" id="emp-${emp.id}"
-                   ${assignedIds.has(emp.id) ? 'checked' : ''}
-                   onchange="toggleAssignment(${jobId}, ${emp.id}, this.checked)">
-            <label for="emp-${emp.id}">
-              <strong>${emp.name}</strong>
-              ${emp.role ? ` - ${emp.role}` : ''}
-            </label>
-          </div>
-        `).join('')}
+      <h3 style="margin-bottom: 1rem;">${jobData.client_name || 'Job'}</h3>
+      <div class="assignment-list">
+        ${allEmployees.filter(e => e.status === 'active').map(emp => {
+          const assignment = assignmentMap[emp.id] || { assigned: false, dates: [] };
+          return `
+            <div class="assignment-item" style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px;">
+              <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                <input type="checkbox" id="assign-emp-${emp.id}"
+                       ${assignment.assigned ? 'checked' : ''}
+                       onchange="toggleAssignment(${jobId}, ${emp.id}, this.checked)"
+                       style="width: 18px; height: 18px;">
+                <label for="assign-emp-${emp.id}" style="flex: 1; cursor: pointer;">
+                  <strong>${emp.name}</strong>
+                  ${emp.role ? `<span style="color: var(--text-muted);"> - ${emp.role}</span>` : ''}
+                </label>
+              </div>
+              <div id="assign-cal-${emp.id}" style="display: ${assignment.assigned ? 'block' : 'none'};">
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Click dates to assign:</div>
+                <div class="assign-cal-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; font-size: 0.75rem;">
+                  ${calendarDays.map(day => {
+                    const isAssigned = assignment.dates.includes(day.date);
+                    return `
+                      <div class="assign-cal-day"
+                           id="assign-day-${jobId}-${emp.id}-${day.date}"
+                           onclick="toggleJobAssignmentDate(${jobId}, ${emp.id}, '${day.date}')"
+                           style="text-align: center; padding: 0.4rem 0.2rem; border-radius: 4px; cursor: pointer;
+                                  background: ${isAssigned ? 'var(--primary)' : 'var(--bg-secondary)'};
+                                  color: ${isAssigned ? 'white' : 'var(--text-secondary)'};">
+                        <div style="font-weight: 600;">${day.dayNum}</div>
+                        <div style="font-size: 0.6rem; opacity: 0.7;">${day.dayName}</div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
       </div>
-      <div class="form-actions">
+      <div class="form-actions" style="margin-top: 1rem;">
         <button class="btn btn-primary" onclick="closeAssignModal()">Done</button>
       </div>
     `;
@@ -1062,12 +1114,78 @@ async function toggleAssignment(jobId, employeeId, isAssigned) {
   try {
     if (isAssigned) {
       await fetch(`${API_URL}/jobs/${jobId}/assign/${employeeId}`, { method: 'POST' });
+      // Show calendar
+      const cal = document.getElementById(`assign-cal-${employeeId}`);
+      if (cal) cal.style.display = 'block';
+      // Update local data
+      if (assignmentCalendarData[jobId]) {
+        if (!assignmentCalendarData[jobId].assignmentMap[employeeId]) {
+          assignmentCalendarData[jobId].assignmentMap[employeeId] = { assigned: true, dates: [] };
+        }
+        assignmentCalendarData[jobId].assignmentMap[employeeId].assigned = true;
+      }
     } else {
       await fetch(`${API_URL}/jobs/${jobId}/assign/${employeeId}`, { method: 'DELETE' });
+      // Hide calendar
+      const cal = document.getElementById(`assign-cal-${employeeId}`);
+      if (cal) cal.style.display = 'none';
+      // Update local data
+      if (assignmentCalendarData[jobId] && assignmentCalendarData[jobId].assignmentMap[employeeId]) {
+        assignmentCalendarData[jobId].assignmentMap[employeeId].assigned = false;
+        assignmentCalendarData[jobId].assignmentMap[employeeId].dates = [];
+      }
     }
     loadJobs();
   } catch (error) {
     console.error('Error toggling assignment:', error);
+  }
+}
+
+async function toggleJobAssignmentDate(jobId, employeeId, dateStr) {
+  const dayEl = document.getElementById(`assign-day-${jobId}-${employeeId}-${dateStr}`);
+  if (dayEl) {
+    dayEl.style.opacity = '0.5';
+  }
+
+  try {
+    // Get current dates from local data
+    const data = assignmentCalendarData[jobId];
+    if (!data || !data.assignmentMap[employeeId]) {
+      console.error('No assignment data found');
+      return;
+    }
+
+    let currentDates = [...data.assignmentMap[employeeId].dates];
+    const dateIndex = currentDates.indexOf(dateStr);
+    let adding = false;
+
+    if (dateIndex > -1) {
+      currentDates.splice(dateIndex, 1);
+    } else {
+      currentDates.push(dateStr);
+      currentDates.sort();
+      adding = true;
+    }
+
+    // Update server
+    await fetch(`${API_URL}/jobs/${jobId}/assign/${employeeId}/dates`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dates: currentDates })
+    });
+
+    // Update local data
+    data.assignmentMap[employeeId].dates = currentDates;
+
+    // Update UI
+    if (dayEl) {
+      dayEl.style.background = adding ? 'var(--primary)' : 'var(--bg-secondary)';
+      dayEl.style.color = adding ? 'white' : 'var(--text-secondary)';
+      dayEl.style.opacity = '1';
+    }
+  } catch (error) {
+    console.error('Error toggling date:', error);
+    if (dayEl) dayEl.style.opacity = '1';
   }
 }
 
