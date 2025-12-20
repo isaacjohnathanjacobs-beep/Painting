@@ -440,9 +440,9 @@ async function displayJobs(jobs) {
     // Calculate predicted completion date
     const predictedCompletion = checklist.length > 0 ? await calculatePredictedCompletionDate(job.id, checklist) : null;
 
-    // Calculate bonus (actual if job has actual_hours, potential if in-progress)
+    // Calculate bonus (actual if job has actual_hours, potential based on predicted hours)
     const actualBonus = calculateJobBonus(job.estimated_hours, job.actual_hours, employees);
-    const potentialBonus = !job.actual_hours && predictedHours ? calculatePotentialBonus(job.estimated_hours, parseFloat(predictedHours), employees) : null;
+    const potentialBonus = calculatePotentialBonus(job.estimated_hours, predictedHours ? parseFloat(predictedHours) : null, employees, job.estimated_hours);
 
     return `
       <div class="card">
@@ -491,11 +491,17 @@ async function displayJobs(jobs) {
                   </div>
                 ` : ''}
               ` : ''}
-              ${potentialBonus ? `
-                <div class="info-row" style="background: #fffde7; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; border: 1px dashed #fbc02d;">
-                  <div class="info-item"><span class="info-label">💎 Potential Bonus:</span><span class="info-value" style="font-weight: 700; color: #f9a825;">$${potentialBonus.potentialBonus.toFixed(2)}</span></div>
-                  <div class="info-item"><span class="info-label">If completed in predicted time (${potentialBonus.potentialHoursSaved} hrs saved)</span></div>
+              ${!actualBonus && potentialBonus ? `
+                <div class="info-row" style="background: ${potentialBonus.status === 'bonus' ? '#fff3e0' : potentialBonus.status === 'over' ? '#ffebee' : '#f5f5f5'}; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; border: 1px solid ${potentialBonus.status === 'bonus' ? '#ffcc80' : potentialBonus.status === 'over' ? '#ef9a9a' : '#e0e0e0'};">
+                  <div class="info-item"><span class="info-label">💎 Potential Bonus:</span><span class="info-value" style="font-weight: 700; color: ${potentialBonus.status === 'bonus' ? '#e65100' : potentialBonus.status === 'over' ? '#c62828' : '#757575'};">$${potentialBonus.potentialBonus.toFixed(2)}</span></div>
+                  <div class="info-item"><span class="info-label">${potentialBonus.message}</span></div>
                 </div>
+                ${potentialBonus.perEmployee.length > 0 && potentialBonus.potentialBonus > 0 ? `
+                  <div style="background: #fff8e1; padding: 0.5rem 0.75rem; border-radius: 4px; margin-top: 0.25rem; font-size: 0.85rem;">
+                    <span style="font-weight: 600; color: #f57c00;">Per Employee:</span>
+                    ${potentialBonus.perEmployee.map(e => `<span style="margin-left: 0.75rem;">${e.name}: <b>$${e.bonus.toFixed(2)}</b></span>`).join('')}
+                  </div>
+                ` : ''}
               ` : ''}
               ${employees.length > 0 ? `
                 <div class="assigned-employees">
@@ -647,23 +653,70 @@ function calculateJobBonus(estimatedHours, actualHours, employees) {
   };
 }
 
-// Calculate potential bonus for in-progress jobs
+// Calculate potential bonus for in-progress jobs - always returns data
 function calculatePotentialBonus(estimatedHours, predictedHours, employees) {
-  if (!estimatedHours || !predictedHours || employees.length === 0) {
-    return null;
+  // Always return bonus info, even if $0
+  if (!estimatedHours) {
+    return {
+      potentialBonus: 0,
+      potentialHoursSaved: 0,
+      perEmployee: [],
+      status: 'no_estimate',
+      message: 'Add estimated hours to track bonus'
+    };
   }
 
-  const potentialHoursSaved = estimatedHours - predictedHours;
-
-  if (potentialHoursSaved <= 0) {
-    return null;
+  if (employees.length === 0) {
+    return {
+      potentialBonus: 0,
+      potentialHoursSaved: 0,
+      perEmployee: [],
+      status: 'no_team',
+      message: 'Assign employees to track bonus'
+    };
   }
 
-  const potentialBonus = potentialHoursSaved * BONUS_RATE_PER_HOUR;
+  // Use predicted hours if available, otherwise assume on-target (0 bonus)
+  const effectivePredicted = predictedHours || estimatedHours;
+  const potentialHoursSaved = estimatedHours - effectivePredicted;
+  const potentialBonus = Math.max(0, potentialHoursSaved * BONUS_RATE_PER_HOUR);
+
+  // Calculate per-employee split
+  let totalEfficiency = 0;
+  const employeeEfficiencies = employees.map(emp => {
+    const baseEfficiency = emp.type === 'brush_hand' ? 0.667 : 1.0;
+    const rating = emp.rating || 1.0;
+    const efficiency = baseEfficiency * rating;
+    totalEfficiency += efficiency;
+    return { ...emp, efficiency };
+  });
+
+  const perEmployee = employeeEfficiencies.map(emp => ({
+    id: emp.id,
+    name: emp.name,
+    bonus: totalEfficiency > 0
+      ? Math.round((emp.efficiency / totalEfficiency) * potentialBonus * 100) / 100
+      : Math.round((potentialBonus / employees.length) * 100) / 100
+  }));
+
+  let status, message;
+  if (potentialHoursSaved > 0) {
+    status = 'bonus';
+    message = `On track to save ${potentialHoursSaved.toFixed(1)} hours!`;
+  } else if (potentialHoursSaved < 0) {
+    status = 'over';
+    message = `${Math.abs(potentialHoursSaved).toFixed(1)} hours over estimate`;
+  } else {
+    status = 'on_target';
+    message = 'On target with estimate';
+  }
 
   return {
     potentialBonus: Math.round(potentialBonus * 100) / 100,
-    potentialHoursSaved: Math.round(potentialHoursSaved * 10) / 10
+    potentialHoursSaved: Math.round(potentialHoursSaved * 10) / 10,
+    perEmployee,
+    status,
+    message
   };
 }
 
