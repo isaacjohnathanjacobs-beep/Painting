@@ -451,91 +451,95 @@ async function displayJobs(jobs) {
         </div>
         <div class="card-body">
           ${job.description ? `<p style="margin-bottom: 15px; color: var(--text-muted);">${job.description.replace(/\n/g, '<br>')}</p>` : ''}
-          <div class="info-row">
-            ${job.client_phone ? `<div class="info-item"><span class="info-label">Phone:</span><span class="info-value">${job.client_phone}</span></div>` : ''}
-            ${job.client_email ? `<div class="info-item"><span class="info-label">Email:</span><span class="info-value">${job.client_email}</span></div>` : ''}
-          </div>
-          <div class="info-row">
-            ${job.start_date ? `<div class="info-item"><span class="info-label">Start:</span><span class="info-value">${formatDateReadable(job.start_date)}</span></div>` : ''}
-            ${job.end_date ? `<div class="info-item"><span class="info-label">End:</span><span class="info-value">${formatDateReadable(job.end_date)}</span></div>` : ''}
-            ${job.estimated_hours ? `<div class="info-item"><span class="info-label">Est. Hours:</span><span class="info-value">${job.estimated_hours}</span></div>` : ''}
-            ${job.estimated_cost ? `<div class="info-item"><span class="info-label">Est. Cost:</span><span class="info-value">$${job.estimated_cost}</span></div>` : ''}
-          </div>
-          ${predictedHours ? `
-            <div class="info-row" style="background: #e8f5e9; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;">
-              <div class="info-item"><span class="info-label">🎯 Predicted Hours:</span><span class="info-value" style="font-weight: 600; color: #2e7d32;">${predictedHours} hrs</span></div>
-              <div class="info-item"><span class="info-label">Team Efficiency:</span><span class="info-value">${employees.map(e => ((e.type === 'brush_hand' ? 0.667 : 1.0) * (e.rating || 1.0)).toFixed(2) + 'x').join(' + ')}</span></div>
+          <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 280px;">
+              <div class="info-row">
+                ${job.client_phone ? `<div class="info-item"><span class="info-label">Phone:</span><span class="info-value">${job.client_phone}</span></div>` : ''}
+                ${job.client_email ? `<div class="info-item"><span class="info-label">Email:</span><span class="info-value">${job.client_email}</span></div>` : ''}
+              </div>
+              <div class="info-row">
+                ${job.start_date ? `<div class="info-item"><span class="info-label">Start:</span><span class="info-value">${formatDateReadable(job.start_date)}</span></div>` : ''}
+                ${job.end_date ? `<div class="info-item"><span class="info-label">End:</span><span class="info-value">${formatDateReadable(job.end_date)}</span></div>` : ''}
+                ${job.estimated_hours ? `<div class="info-item"><span class="info-label">Est. Hours:</span><span class="info-value">${job.estimated_hours}</span></div>` : ''}
+                ${job.estimated_cost ? `<div class="info-item"><span class="info-label">Est. Cost:</span><span class="info-value">$${job.estimated_cost}</span></div>` : ''}
+              </div>
+              ${predictedHours ? `
+                <div class="info-row" style="background: #e8f5e9; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;">
+                  <div class="info-item"><span class="info-label">🎯 Predicted Hours:</span><span class="info-value" style="font-weight: 600; color: #2e7d32;">${predictedHours} hrs</span></div>
+                  <div class="info-item"><span class="info-label">Team Efficiency:</span><span class="info-value">${employees.map(e => ((e.type === 'brush_hand' ? 0.667 : 1.0) * (e.rating || 1.0)).toFixed(2) + 'x').join(' + ')}</span></div>
+                </div>
+              ` : ''}
+              ${predictedCompletion ? `
+                <div class="info-row" style="background: #e3f2fd; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;">
+                  <div class="info-item"><span class="info-label">📅 Predicted Completion:</span><span class="info-value" style="font-weight: 600; color: #1976d2;">${predictedCompletion.displayDate} (${predictedCompletion.daysRemaining} days)</span></div>
+                  <div class="info-item"><span class="info-label">Daily Rate:</span><span class="info-value">${predictedCompletion.completionRate}% per day</span></div>
+                </div>
+              ` : ''}
+              ${employees.length > 0 ? `
+                <div class="assigned-employees">
+                  <h4>Assigned Employees:</h4>
+                  <div class="employee-tags">
+                    ${employees.map(emp => `<span class="employee-tag">${emp.name}</span>`).join('')}
+                  </div>
+                </div>
+              ` : ''}
             </div>
-          ` : ''}
-          ${predictedCompletion ? `
-            <div class="info-row" style="background: #e3f2fd; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;">
-              <div class="info-item"><span class="info-label">📅 Predicted Completion:</span><span class="info-value" style="font-weight: 600; color: #1976d2;">${predictedCompletion.displayDate} (${predictedCompletion.daysRemaining} days)</span></div>
-              <div class="info-item"><span class="info-label">Daily Rate:</span><span class="info-value">${predictedCompletion.completionRate}% per day</span></div>
-            </div>
-          ` : ''}
+            ${(() => {
+              // Get assignments for this job
+              const jobAssignments = allAssignments.filter(a => a.job_id === job.id);
+
+              // Collect all assigned dates with employee names
+              const dateEmployees = {};
+              jobAssignments.forEach(a => {
+                const dates = safeParseDates(a.assigned_dates);
+                dates.forEach(dateStr => {
+                  if (!dateEmployees[dateStr]) dateEmployees[dateStr] = [];
+                  const emp = employees.find(e => e.id === a.employee_id);
+                  if (emp) dateEmployees[dateStr].push(emp.name);
+                });
+              });
+
+              // Generate next 14 days for calendar grid
+              const today = new Date();
+              const calendarDays = [];
+              for (let i = 0; i < 14; i++) {
+                const date = new Date(today);
+                date.setDate(date.getDate() + i);
+                calendarDays.push({
+                  date: formatDate(date),
+                  dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
+                  dayNum: date.getDate()
+                });
+              }
+
+              return `
+                <div class="job-schedule-calendar" style="flex: 0 0 auto; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px;">
+                  <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; color: var(--primary);">📅 Work Schedule</h4>
+                  <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 0.75rem;">
+                    ${calendarDays.map(day => {
+                      const empsOnDay = dateEmployees[day.date] || [];
+                      const hasWorkers = empsOnDay.length > 0;
+                      const empNames = empsOnDay.join(', ');
+                      const displayName = empsOnDay.length > 0 ? (empsOnDay[0].length > 6 ? empsOnDay[0].substring(0, 5) + '…' : empsOnDay[0]) : '';
+                      const moreCount = empsOnDay.length > 1 ? `+${empsOnDay.length - 1}` : '';
+                      return `
+                        <div title="${hasWorkers ? empNames : 'No workers assigned'}"
+                             style="text-align: center; padding: 0.4rem 0.2rem; border-radius: 4px;
+                                    background: ${hasWorkers ? 'var(--primary)' : 'var(--bg-secondary)'};
+                                    color: ${hasWorkers ? 'white' : 'var(--text-muted)'}; min-height: 55px;">
+                          <div style="font-weight: 600; font-size: 0.9rem;">${day.dayNum}</div>
+                          <div style="font-size: 0.6rem; opacity: 0.7;">${day.dayName}</div>
+                          ${hasWorkers ? `<div style="font-size: 0.55rem; margin-top: 2px; font-weight: 500;">${displayName}${moreCount}</div>` : ''}
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                </div>
+              `;
+            })()}
+          </div>
           ${materialsChecklist.length > 0 ? generateMaterialsDisplay(job.id, materialsChecklist) : ''}
           ${checklist.length > 0 ? await generateProfessionalTaskDisplay(job.id, checklist) : ''}
-          ${employees.length > 0 ? `
-            <div class="assigned-employees">
-              <h4>Assigned Employees:</h4>
-              <div class="employee-tags">
-                ${employees.map(emp => `<span class="employee-tag">${emp.name}</span>`).join('')}
-              </div>
-            </div>
-          ` : ''}
-          ${(() => {
-            // Get assignments for this job
-            const jobAssignments = allAssignments.filter(a => a.job_id === job.id);
-
-            // Collect all assigned dates with employee names
-            const dateEmployees = {};
-            jobAssignments.forEach(a => {
-              const dates = safeParseDates(a.assigned_dates);
-              dates.forEach(dateStr => {
-                if (!dateEmployees[dateStr]) dateEmployees[dateStr] = [];
-                const emp = employees.find(e => e.id === a.employee_id);
-                if (emp) dateEmployees[dateStr].push(emp.name);
-              });
-            });
-
-            // Generate next 14 days for calendar grid
-            const today = new Date();
-            const calendarDays = [];
-            for (let i = 0; i < 14; i++) {
-              const date = new Date(today);
-              date.setDate(date.getDate() + i);
-              calendarDays.push({
-                date: formatDate(date),
-                dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
-                dayNum: date.getDate()
-              });
-            }
-
-            return `
-              <div class="job-schedule-calendar" style="margin-top: 1rem; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px;">
-                <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; color: var(--primary);">📅 Work Schedule</h4>
-                <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: 0.75rem;">
-                  ${calendarDays.map(day => {
-                    const empsOnDay = dateEmployees[day.date] || [];
-                    const hasWorkers = empsOnDay.length > 0;
-                    const empNames = empsOnDay.join(', ');
-                    const displayName = empsOnDay.length > 0 ? (empsOnDay[0].length > 6 ? empsOnDay[0].substring(0, 5) + '…' : empsOnDay[0]) : '';
-                    const moreCount = empsOnDay.length > 1 ? `+${empsOnDay.length - 1}` : '';
-                    return `
-                      <div title="${hasWorkers ? empNames : 'No workers assigned'}"
-                           style="text-align: center; padding: 0.4rem 0.2rem; border-radius: 4px;
-                                  background: ${hasWorkers ? 'var(--primary)' : 'var(--bg-secondary)'};
-                                  color: ${hasWorkers ? 'white' : 'var(--text-muted)'}; min-height: 55px;">
-                        <div style="font-weight: 600; font-size: 0.9rem;">${day.dayNum}</div>
-                        <div style="font-size: 0.6rem; opacity: 0.7;">${day.dayName}</div>
-                        ${hasWorkers ? `<div style="font-size: 0.55rem; margin-top: 2px; font-weight: 500;">${displayName}${moreCount}</div>` : ''}
-                      </div>
-                    `;
-                  }).join('')}
-                </div>
-              </div>
-            `;
-          })()}
         </div>
         <div class="card-actions">
           <button class="btn btn-secondary btn-sm" onclick="manageAssignments(${job.id})">Assign Employees</button>
