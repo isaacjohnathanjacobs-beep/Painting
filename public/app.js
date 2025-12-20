@@ -660,6 +660,11 @@ function closeJobModal() {
   document.getElementById('job-modal').classList.remove('active');
   document.getElementById('job-form').reset();
   editingJobId = null;
+  // Clear any stored lists
+  window.pendingTaskList = null;
+  window.pendingMaterialsList = null;
+  window.existingTaskList = null;
+  window.existingMaterialsList = null;
 }
 
 async function loadJobData(jobId) {
@@ -680,6 +685,18 @@ async function loadJobData(jobId) {
     document.getElementById('actual-hours').value = job.actual_hours || '';
     document.getElementById('estimated-cost').value = job.estimated_cost || '';
     document.getElementById('actual-cost').value = job.actual_cost || '';
+
+    // Preserve existing checklists when editing
+    let checklist = [];
+    let materialsChecklist = [];
+    try {
+      checklist = typeof job.checklist === 'string' ? JSON.parse(job.checklist) : (job.checklist || []);
+      materialsChecklist = typeof job.materials_checklist === 'string' ? JSON.parse(job.materials_checklist) : (job.materials_checklist || []);
+    } catch (e) {
+      console.warn('Error parsing existing checklists:', e);
+    }
+    window.existingTaskList = checklist;
+    window.existingMaterialsList = materialsChecklist;
   } catch (error) {
     console.error('Error loading job data:', error);
   }
@@ -950,6 +967,10 @@ function setupForms() {
   document.getElementById('job-form').addEventListener('submit', async (e) => {
     e.preventDefault();
 
+    // Use pending lists if new ones were generated, otherwise preserve existing ones when editing
+    const checklist = window.pendingTaskList || window.existingTaskList || [];
+    const materialsChecklist = window.pendingMaterialsList || window.existingMaterialsList || [];
+
     const jobData = {
       client_name: document.getElementById('client-name').value,
       client_phone: document.getElementById('client-phone').value,
@@ -963,13 +984,15 @@ function setupForms() {
       actual_hours: document.getElementById('actual-hours').value || null,
       estimated_cost: document.getElementById('estimated-cost').value || null,
       actual_cost: document.getElementById('actual-cost').value || null,
-      checklist: window.pendingTaskList || [],
-      materials_checklist: window.pendingMaterialsList || []
+      checklist: checklist,
+      materials_checklist: materialsChecklist
     };
 
-    // Clear pending lists after using them
+    // Clear pending and existing lists after using them
     window.pendingTaskList = null;
     window.pendingMaterialsList = null;
+    window.existingTaskList = null;
+    window.existingMaterialsList = null;
 
     try {
       let savedJobId = editingJobId;
