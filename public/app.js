@@ -1333,13 +1333,12 @@ async function updateProfessionalTask(jobId, taskId, completed, taskName = '', t
     console.log(`[updateProfessionalTask] Starting - jobId: ${jobId}, taskId: ${taskId}, completed: ${completed}, task: ${taskName}`);
 
     if (completed) {
-      // When marking complete, ask which employee completed it
+      // When marking complete, auto-detect who's on-site today
       console.log(`[updateProfessionalTask] Getting job employees...`);
       const employees = await getJobEmployees(jobId);
 
       if (employees.length === 0) {
         alert('No employees assigned to this job. Assign employees first.');
-        // Reload to uncheck the box
         loadJobs();
         return;
       }
@@ -1367,44 +1366,9 @@ async function updateProfessionalTask(jobId, taskId, completed, taskName = '', t
         return dates.includes(today);
       });
 
-      // Build selection prompt
-      let message = 'Who completed this task?\n\n';
-      if (onSiteToday.length > 0) {
-        message += 'On-site today:\n';
-        onSiteToday.forEach((emp, idx) => {
-          message += `${idx + 1}. ${emp.name} ⭐\n`;
-        });
-
-        if (employees.length > onSiteToday.length) {
-          message += '\nOther assigned employees:\n';
-          const others = employees.filter(e => !onSiteToday.find(o => o.id === e.id));
-          others.forEach((emp, idx) => {
-            message += `${onSiteToday.length + idx + 1}. ${emp.name}\n`;
-          });
-        }
-      } else {
-        message += 'Assigned employees:\n';
-        employees.forEach((emp, idx) => {
-          message += `${idx + 1}. ${emp.name}\n`;
-        });
-      }
-
-      const choice = prompt(message + '\nEnter employee number:', '1');
-
-      if (!choice) {
-        // Cancelled - reload to uncheck the box
-        loadJobs();
-        return;
-      }
-
-      const empIndex = parseInt(choice) - 1;
-      if (empIndex < 0 || empIndex >= employees.length) {
-        alert('Invalid employee number');
-        loadJobs();
-        return;
-      }
-
-      const completedByEmployee = employees[empIndex];
+      // Auto-select: use first on-site employee, or first assigned employee if none on-site
+      const completedByEmployee = onSiteToday.length > 0 ? onSiteToday[0] : employees[0];
+      console.log(`[updateProfessionalTask] Auto-selected employee: ${completedByEmployee.name} (on-site: ${onSiteToday.length > 0})`);
 
       // Update task with completed_by info
       await updateTaskCompletion(jobId, taskId, true, completedByEmployee.id, onSiteToday.map(e => e.id), today, taskName, taskRoom, taskPercentage);
