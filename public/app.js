@@ -9,6 +9,12 @@ let editingEmployeeId = null;
 let currentJobForAssignment = null;
 let openChecklists = new Set(); // Track which checklists are open
 
+// Escape string for use in HTML attributes
+function escapeHtmlAttr(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // Safe helper to parse dates - handles both arrays (already parsed by server) and strings
 function safeParseDates(value) {
   if (Array.isArray(value)) return value;
@@ -198,7 +204,7 @@ async function generateProfessionalTaskDisplay(jobId, checklist) {
                                id="task-${jobId}-${task.id}"
                                ${task.completed ? 'checked' : ''}
                                ${!isEnabled ? 'disabled' : ''}
-                               onchange="updateProfessionalTask(${jobId}, ${task.id}, this.checked, ${JSON.stringify(task.task)}, ${JSON.stringify(task.room || '')}, ${task.percentage || 0})"
+                               onchange="updateProfessionalTask(${jobId}, ${task.id}, this.checked, '${escapeHtmlAttr(task.task)}', '${escapeHtmlAttr(task.room || '')}', ${task.percentage || 0})"
                                style="margin-top: 0.25rem;">
                         <div style="flex: 1;">
                           <label for="task-${jobId}-${task.id}" style="cursor: ${isEnabled ? 'pointer' : 'not-allowed'}; display: block;">
