@@ -462,6 +462,16 @@ const wss = new WebSocket.Server({ server });
 
 const players = new Map(); // Map of playerId -> player data
 
+// Shared goblin state (server-authoritative)
+const TILE = 32;
+const goblins = [
+  {id:1, name:'Goblin', x:18*TILE, y:15*TILE, tileX:18, tileY:15, hp:5, maxHp:5, dir:1, anim:'idle', frame:0, timer:0, aggroRange:4, attackTimer:0, respawnTimer:0, dead:false},
+  {id:2, name:'Goblin', x:30*TILE, y:22*TILE, tileX:30, tileY:22, hp:5, maxHp:5, dir:-1, anim:'idle', frame:0, timer:0, aggroRange:4, attackTimer:0, respawnTimer:0, dead:false},
+  {id:3, name:'Goblin', x:20*TILE, y:25*TILE, tileX:20, tileY:25, hp:5, maxHp:5, dir:1, anim:'idle', frame:0, timer:0, aggroRange:4, attackTimer:0, respawnTimer:0, dead:false},
+  {id:4, name:'Goblin Scout', x:15*TILE, y:18*TILE, tileX:15, tileY:18, hp:7, maxHp:7, dir:-1, anim:'idle', frame:0, timer:0, aggroRange:5, attackTimer:0, respawnTimer:0, dead:false},
+  {id:5, name:'Goblin Brute', x:32*TILE, y:18*TILE, tileX:32, tileY:18, hp:10, maxHp:10, dir:1, anim:'idle', frame:0, timer:0, aggroRange:3, attackTimer:0, respawnTimer:0, dead:false}
+];
+
 wss.on('connection', (ws) => {
   const playerId = Math.random().toString(36).substring(7);
   console.log(`Player ${playerId} connected`);
@@ -472,6 +482,9 @@ wss.on('connection', (ws) => {
   // Send existing players to new player
   const existingPlayers = Array.from(players.values());
   ws.send(JSON.stringify({ type: 'players', players: existingPlayers }));
+
+  // Send current goblin state to new player
+  ws.send(JSON.stringify({ type: 'goblins', goblins }));
 
   // Add new player
   players.set(playerId, {
@@ -504,6 +517,22 @@ wss.on('connection', (ws) => {
           // Broadcast to all other players
           broadcast({ type: 'playerUpdate', player }, playerId);
         }
+      } else if (data.type === 'goblinDamage') {
+        // Handle goblin damage from client
+        const goblin = goblins.find(g => g.id === data.goblinId);
+        if (goblin && !goblin.dead) {
+          goblin.hp -= data.damage;
+          goblin.anim = 'hurt';
+
+          if (goblin.hp <= 0) {
+            goblin.dead = true;
+            goblin.respawnTimer = 15000;
+            goblin.anim = 'idle';
+          }
+
+          // Broadcast goblin update to all clients
+          broadcast({ type: 'goblinUpdate', goblin });
+        }
       }
     } catch (err) {
       console.error('Error parsing message:', err);
@@ -531,3 +560,77 @@ function broadcast(message, excludeId = null) {
     }
   });
 }
+
+// Server-side goblin update loop
+let lastUpdate = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  const dt = now - lastUpdate;
+  lastUpdate = now;
+
+  let updated = false;
+  for (const g of goblins) {
+    if (g.dead) {
+      g.respawnTimer -= dt;
+      if (g.respawnTimer <= 0) {
+        g.dead = false;
+        g.hp = g.maxHp;
+        g.anim = 'idle';
+        updated = true;
+      }
+    } else {
+      // Update animation frame
+      g.timer += dt;
+      const gSpd = g.anim === 'walk' ? 100 : g.anim === 'attack' ? 80 : 150;
+      if (g.timer >= gSpd) {
+        g.timer = 0;
+        g.frame = (g.frame + 1) % 8;
+        updated = true;
+      }
+
+      // Simple AI: Move toward nearest player
+      let nearestPlayer = null;
+      let nearestDist = Infinity;
+
+      for (const [id, p] of players) {
+        const dist = Math.sqrt((p.x - g.x) ** 2 + (p.y - g.y) ** 2);
+        if (dist < nearestDist && dist < g.aggroRange * TILE) {
+          nearestDist = dist;
+          nearestPlayer = p;
+        }
+      }
+
+      if (nearestPlayer) {
+        g.dir = nearestPlayer.x > g.x ? 1 : -1;
+
+        if (nearestDist > TILE * 1.2) {
+          // Move toward player
+          g.anim = 'walk';
+          const dx = nearestPlayer.x - g.x;
+          const dy = nearestPlayer.y - g.y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d > 0) {
+            g.x += (dx / d) * 1.5;
+            g.y += (dy / d) * 1.5;
+            g.tileX = Math.floor(g.x / TILE);
+            g.tileY = Math.floor(g.y / TILE);
+            updated = true;
+          }
+        } else {
+          g.anim = 'attack';
+          updated = true;
+        }
+      } else {
+        if (g.anim !== 'idle') {
+          g.anim = 'idle';
+          updated = true;
+        }
+      }
+    }
+  }
+
+  // Broadcast goblin state if anything changed
+  if (updated) {
+    broadcast({ type: 'goblins', goblins });
+  }
+}, 50); // 20 updates per second

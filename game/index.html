@@ -758,14 +758,8 @@ function genMap() {
         {id:'woodcutting',name:'Forester',type:'woodcutting',x:37,y:27}
     ];
 
-    // Spawn goblins in various locations
-    goblins=[
-        {id:1, name:'Goblin', x:18*TILE, y:15*TILE, tileX:18, tileY:15, hp:5, maxHp:5, dir:1, anim:'idle', frame:0, timer:0, aggroRange:4, attackTimer:0, respawnTimer:0, dead:false},
-        {id:2, name:'Goblin', x:30*TILE, y:22*TILE, tileX:30, tileY:22, hp:5, maxHp:5, dir:-1, anim:'idle', frame:0, timer:0, aggroRange:4, attackTimer:0, respawnTimer:0, dead:false},
-        {id:3, name:'Goblin', x:20*TILE, y:25*TILE, tileX:20, tileY:25, hp:5, maxHp:5, dir:1, anim:'idle', frame:0, timer:0, aggroRange:4, attackTimer:0, respawnTimer:0, dead:false},
-        {id:4, name:'Goblin Scout', x:15*TILE, y:18*TILE, tileX:15, tileY:18, hp:7, maxHp:7, dir:-1, anim:'idle', frame:0, timer:0, aggroRange:5, attackTimer:0, respawnTimer:0, dead:false},
-        {id:5, name:'Goblin Brute', x:32*TILE, y:18*TILE, tileX:32, tileY:18, hp:10, maxHp:10, dir:1, anim:'idle', frame:0, timer:0, aggroRange:3, attackTimer:0, respawnTimer:0, dead:false}
-    ];
+    // Goblins are now spawned and managed by the server
+    // goblins will be populated via WebSocket messages
 }
 function path(x1,y1,x2,y2){const s=Math.max(Math.abs(x2-x1),Math.abs(y2-y1));for(let i=0;i<=s;i++){const x=Math.round(x1+(x2-x1)*i/s),y=Math.round(y1+(y2-y1)*i/s);if(x>=0&&x<MAP_W&&y>=0&&y<MAP_H){map[y][x]=6;if(x+1<MAP_W)map[y][x+1]=6;}}}
 function area(sx,sy,w,h,t){for(let y=sy;y<sy+h&&y<MAP_H;y++)for(let x=sx;x<sx+w&&x<MAP_W;x++)if(x>=0&&y>=0)map[y][x]=t;}
@@ -849,14 +843,22 @@ function update(dt){
                     const atkBonus = getEquipBonus('atk');
                     const strBonus = getEquipBonus('str');
                     const dmg = 1 + Math.floor(Math.random() * (player.stats.strength + strBonus)) + Math.floor(atkBonus / 2);
-                    g.hp -= dmg;
-                    g.anim = 'hurt';
+
+                    // Send damage to server for synchronization
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
+                            type: 'goblinDamage',
+                            goblinId: g.id,
+                            damage: dmg
+                        }));
+                    }
+
                     showDamage(g.x, g.y - 20, dmg, '#ff0');
                     chat('You hit ' + g.name + ' for ' + dmg + ' damage!');
                     player.stats.attack += 0.05;
-                    if(g.hp <= 0){
-                        g.dead = true;
-                        g.respawnTimer = 15000;
+
+                    // Check if goblin will die (optimistic local update)
+                    if(g.hp - dmg <= 0){
                         player.attacking = null;
                         player.anim = 'idle';
                         chat(g.name + ' defeated! +10 XP');
@@ -884,33 +886,13 @@ function update(dt){
         else{player.x=tx;player.y=ty;player.tileX=n.x;player.tileY=n.y;player.path.shift();if(!player.path.length){player.moving=false;if(!player.attacking)player.anim='idle';player.frame=0;}}
     }else if(!player.attacking) player.anim='idle';
 
-    // Update goblins
+    // Goblins are now updated by the server
+    // Client only handles local attack detection for damage to player
     for(const g of goblins){
-        if(g.dead){
-            g.respawnTimer -= dt;
-            if(g.respawnTimer <= 0){
-                g.dead = false;
-                g.hp = g.maxHp;
-                g.anim = 'idle';
-            }
-            continue;
-        }
-
-        g.timer += dt;
-        const gSpd = g.anim === 'walk' ? 100 : g.anim === 'attack' ? 80 : 150;
-        if(g.timer >= gSpd){ g.timer = 0; g.frame = (g.frame + 1) % 8; }
-
-        // Check distance to player
-        const distToPlayer = Math.sqrt((player.x - g.x)**2 + (player.y - g.y)**2);
-
-        if(distToPlayer < g.aggroRange * TILE){
-            // Aggro - move toward player
-            g.dir = player.x > g.x ? 1 : -1;
-
+        if(!g.dead && g.anim === 'attack'){
+            const distToPlayer = Math.sqrt((player.x - g.x)**2 + (player.y - g.y)**2);
             if(distToPlayer < TILE * 1.2){
-                // Attack player
-                g.anim = 'attack';
-                g.attackTimer += dt;
+                g.attackTimer = (g.attackTimer || 0) + dt;
                 if(g.attackTimer >= 1200){
                     g.attackTimer = 0;
                     const defBonus = getEquipBonus('def');
@@ -930,22 +912,7 @@ function update(dt){
                         document.getElementById('health-fill').style.width = '100%';
                     }
                 }
-            } else {
-                // Move toward player
-                g.anim = 'walk';
-                const dx = player.x - g.x, dy = player.y - g.y;
-                const d = Math.sqrt(dx*dx + dy*dy);
-                if(d > 0){
-                    g.x += (dx / d) * 1.5;
-                    g.y += (dy / d) * 1.5;
-                    g.tileX = Math.floor(g.x / TILE);
-                    g.tileY = Math.floor(g.y / TILE);
-                }
             }
-        } else {
-            // Idle or wander
-            g.anim = 'idle';
-            g.attackTimer = 0;
         }
     }
 
@@ -1092,6 +1059,18 @@ function initMultiplayer() {
         } else if (data.type === 'playerLeft') {
             otherPlayers.delete(data.playerId);
             chat(`Player left the game!`, 'system');
+        } else if (data.type === 'goblins') {
+            // Receive full goblin state from server
+            goblins.length = 0;
+            for (const g of data.goblins) {
+                goblins.push({...g});
+            }
+        } else if (data.type === 'goblinUpdate') {
+            // Update single goblin
+            const goblin = goblins.find(g => g.id === data.goblin.id);
+            if (goblin) {
+                Object.assign(goblin, data.goblin);
+            }
         }
     };
 
