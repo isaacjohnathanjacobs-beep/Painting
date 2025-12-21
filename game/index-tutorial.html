@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>Tutorial Island - OSRS-Style Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Character Creator Screen -->
+    <div id="character-creator" class="screen active">
+        <div class="creator-container">
+            <h1>Create Your Character</h1>
+
+            <div class="creator-content">
+                <div class="preview-section">
+                    <canvas id="character-preview" width="128" height="192"></canvas>
+                    <p class="preview-label">Preview</p>
+                </div>
+
+                <div class="options-section">
+                    <div class="option-group">
+                        <label>Character Name</label>
+                        <input type="text" id="character-name" maxlength="12" placeholder="Enter name...">
+                    </div>
+
+                    <div class="option-group">
+                        <label>Gender</label>
+                        <div class="button-group">
+                            <button class="option-btn active" data-option="gender" data-value="male">Male</button>
+                            <button class="option-btn" data-option="gender" data-value="female">Female</button>
+                        </div>
+                    </div>
+
+                    <div class="option-group">
+                        <label>Skin Tone</label>
+                        <div class="color-options" id="skin-options">
+                            <button class="color-btn active" data-option="skin" data-value="0" style="background-color: #FFDBAC;"></button>
+                            <button class="color-btn" data-option="skin" data-value="1" style="background-color: #F1C27D;"></button>
+                            <button class="color-btn" data-option="skin" data-value="2" style="background-color: #E0AC69;"></button>
+                            <button class="color-btn" data-option="skin" data-value="3" style="background-color: #C68642;"></button>
+                            <button class="color-btn" data-option="skin" data-value="4" style="background-color: #8D5524;"></button>
+                            <button class="color-btn" data-option="skin" data-value="5" style="background-color: #5C3A21;"></button>
+                        </div>
+                    </div>
+
+                    <div class="option-group">
+                        <label>Hair Style</label>
+                        <div class="button-group">
+                            <button class="arrow-btn" id="hair-prev">◀</button>
+                            <span id="hair-name">Short</span>
+                            <button class="arrow-btn" id="hair-next">▶</button>
+                        </div>
+                    </div>
+
+                    <div class="option-group">
+                        <label>Hair Color</label>
+                        <div class="color-options" id="hair-color-options">
+                            <button class="color-btn active" data-option="hairColor" data-value="0" style="background-color: #090806;"></button>
+                            <button class="color-btn" data-option="hairColor" data-value="1" style="background-color: #3D2314;"></button>
+                            <button class="color-btn" data-option="hairColor" data-value="2" style="background-color: #85461E;"></button>
+                            <button class="color-btn" data-option="hairColor" data-value="3" style="background-color: #D4A574;"></button>
+                            <button class="color-btn" data-option="hairColor" data-value="4" style="background-color: #E5C100;"></button>
+                            <button class="color-btn" data-option="hairColor" data-value="5" style="background-color: #B55239;"></button>
+                            <button class="color-btn" data-option="hairColor" data-value="6" style="background-color: #DEDEDE;"></button>
+                            <button class="color-btn" data-option="hairColor" data-value="7" style="background-color: #FF6B6B;"></button>
+                        </div>
+                    </div>
+
+                    <div class="option-group">
+                        <label>Shirt Color</label>
+                        <div class="color-options" id="shirt-options">
+                            <button class="color-btn active" data-option="shirt" data-value="0" style="background-color: #4A90D9;"></button>
+                            <button class="color-btn" data-option="shirt" data-value="1" style="background-color: #D94A4A;"></button>
+                            <button class="color-btn" data-option="shirt" data-value="2" style="background-color: #4AD94A;"></button>
+                            <button class="color-btn" data-option="shirt" data-value="3" style="background-color: #D9D94A;"></button>
+                            <button class="color-btn" data-option="shirt" data-value="4" style="background-color: #9B4AD9;"></button>
+                            <button class="color-btn" data-option="shirt" data-value="5" style="background-color: #FFFFFF;"></button>
+                            <button class="color-btn" data-option="shirt" data-value="6" style="background-color: #2D2D2D;"></button>
+                        </div>
+                    </div>
+
+                    <div class="option-group">
+                        <label>Pants Color</label>
+                        <div class="color-options" id="pants-options">
+                            <button class="color-btn active" data-option="pants" data-value="0" style="background-color: #4A5568;"></button>
+                            <button class="color-btn" data-option="pants" data-value="1" style="background-color: #2D3748;"></button>
+                            <button class="color-btn" data-option="pants" data-value="2" style="background-color: #744210;"></button>
+                            <button class="color-btn" data-option="pants" data-value="3" style="background-color: #1A365D;"></button>
+                            <button class="color-btn" data-option="pants" data-value="4" style="background-color: #553C9A;"></button>
+                            <button class="color-btn" data-option="pants" data-value="5" style="background-color: #22543D;"></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="start-game" class="start-btn">Enter Tutorial Island</button>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen">
+        <canvas id="game-canvas"></canvas>
+
+        <!-- Game UI -->
+        <div id="game-ui">
+            <!-- Top bar -->
+            <div id="top-bar">
+                <div id="player-info">
+                    <span id="player-name-display">Player</span>
+                </div>
+            </div>
+
+            <!-- Stats panel -->
+            <div id="stats-panel" class="ui-panel">
+                <h3>Skills</h3>
+                <div class="stat-row">
+                    <span class="stat-icon">⚔️</span>
+                    <span class="stat-name">Attack</span>
+                    <span class="stat-value" id="stat-attack">1</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-icon">🛡️</span>
+                    <span class="stat-name">Defence</span>
+                    <span class="stat-value" id="stat-defence">1</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-icon">💪</span>
+                    <span class="stat-name">Strength</span>
+                    <span class="stat-value" id="stat-strength">1</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-icon">❤️</span>
+                    <span class="stat-name">Hitpoints</span>
+                    <span class="stat-value" id="stat-hitpoints">10</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-icon">🏃</span>
+                    <span class="stat-name">Agility</span>
+                    <span class="stat-value" id="stat-agility">1</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-icon">🎣</span>
+                    <span class="stat-name">Fishing</span>
+                    <span class="stat-value" id="stat-fishing">1</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-icon">🍳</span>
+                    <span class="stat-name">Cooking</span>
+                    <span class="stat-value" id="stat-cooking">1</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-icon">🪓</span>
+                    <span class="stat-name">Woodcutting</span>
+                    <span class="stat-value" id="stat-woodcutting">1</span>
+                </div>
+            </div>
+
+            <!-- Inventory panel -->
+            <div id="inventory-panel" class="ui-panel">
+                <h3>Inventory</h3>
+                <div id="inventory-grid">
+                    <!-- 28 inventory slots like OSRS -->
+                </div>
+            </div>
+
+            <!-- Minimap -->
+            <div id="minimap-container">
+                <canvas id="minimap" width="150" height="150"></canvas>
+            </div>
+
+            <!-- Chat/Dialogue box -->
+            <div id="chat-box">
+                <div id="chat-messages"></div>
+                <div id="dialogue-box" class="hidden">
+                    <div id="npc-portrait"></div>
+                    <div id="dialogue-content">
+                        <p id="npc-name"></p>
+                        <p id="dialogue-text"></p>
+                        <div id="dialogue-options"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action bar -->
+            <div id="action-bar">
+                <button class="action-btn" id="btn-stats" title="Stats">📊</button>
+                <button class="action-btn" id="btn-inventory" title="Inventory">🎒</button>
+                <button class="action-btn" id="btn-map" title="Map">🗺️</button>
+                <button class="action-btn" id="btn-settings" title="Settings">⚙️</button>
+            </div>
+        </div>
+
+        <!-- Tutorial overlay -->
+        <div id="tutorial-overlay" class="hidden">
+            <div id="tutorial-box">
+                <h3 id="tutorial-title">Welcome to Tutorial Island!</h3>
+                <p id="tutorial-text">Click anywhere to continue...</p>
+                <button id="tutorial-continue">Continue</button>
+            </div>
+        </div>
+
+        <!-- Context menu -->
+        <div id="context-menu" class="hidden">
+            <ul id="context-options"></ul>
+        </div>
+    </div>
+
+    <script src="js/utils.js"></script>
+    <script src="js/sprites.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/npc.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/dialogue.js"></script>
+    <script src="js/tutorial.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
