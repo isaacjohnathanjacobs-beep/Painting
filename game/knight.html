@@ -132,8 +132,8 @@ const ARMOR_COLORS = ['#708090','#4a6fa5','#8b0000','#2e8b57','#4b0082','#cd853f
 const CAPE_COLORS = ['#8b0000','#00008b','#006400','#4b0082','#8b4513','#c9a227','#2f4f4f','#dc143c'];
 
 let knight = { name:'Knight', armor:0, cape:0 };
-let player = { x:25*TILE, y:20*TILE, tileX:25, tileY:20, path:[], moving:false, dir:1, anim:'idle', frame:0, timer:0, inv:Array(28).fill(null), stats:{attack:1,defence:1,strength:1,fishing:1,cooking:1,woodcutting:1}, hp:10, maxHp:10 };
-let map=[], objs=[], npcs=[];
+let player = { x:25*TILE, y:20*TILE, tileX:25, tileY:20, path:[], moving:false, dir:1, anim:'idle', frame:0, timer:0, inv:Array(28).fill(null), stats:{attack:1,defence:1,strength:1,fishing:1,cooking:1,woodcutting:1}, hp:10, maxHp:10, attacking:null, attackTimer:0 };
+let map=[], objs=[], npcs=[], goblins=[];
 let cam={x:0,y:0,w:0,h:0};
 let canvas,ctx,minimap,miniCtx,lastTime=0;
 
@@ -352,6 +352,179 @@ function lightenColor(col, amt) {
     return '#' + (0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1);
 }
 
+// ===================== GOBLIN DRAWING =====================
+function drawGoblin(c, x, y, scale, dir, anim, frame, hp, maxHp) {
+    c.save();
+    c.translate(x, y);
+    c.scale(scale, scale);
+
+    const skinCol = '#5a8a3a';
+    const skinDark = '#4a7a2a';
+    const skinLight = '#6a9a4a';
+    const clothCol = '#8b4513';
+    const clothDark = '#5a3010';
+
+    // Animation
+    let legOff = 0, armOff = 0, bodyOff = 0;
+    const f = frame % 8;
+
+    if (anim === 'walk') {
+        legOff = Math.sin(f * 0.9) * 3;
+        armOff = Math.sin(f * 0.9 + Math.PI) * 2;
+        bodyOff = Math.abs(Math.sin(f * 0.9)) * -1;
+    } else if (anim === 'attack') {
+        armOff = Math.sin(f * 0.6) * 6;
+    } else if (anim === 'hurt') {
+        bodyOff = Math.sin(f * 2) * 2;
+    } else {
+        bodyOff = Math.sin(f * 0.2) * 0.5;
+    }
+
+    // Shadow
+    c.fillStyle = 'rgba(0,0,0,0.3)';
+    c.beginPath();
+    c.ellipse(0, 18, 10, 4, 0, 0, Math.PI*2);
+    c.fill();
+
+    // Back leg
+    c.fillStyle = skinDark;
+    c.fillRect(-4, 8 + bodyOff - legOff, 4, 10);
+    c.fillStyle = clothDark;
+    c.fillRect(-5, 6 + bodyOff - legOff, 6, 5);
+
+    // Body (hunched)
+    c.fillStyle = clothCol;
+    c.beginPath();
+    c.ellipse(0, 2 + bodyOff, 8, 7, 0, 0, Math.PI*2);
+    c.fill();
+
+    // Belly showing
+    c.fillStyle = skinLight;
+    c.beginPath();
+    c.ellipse(2, 5 + bodyOff, 4, 4, 0, 0, Math.PI*2);
+    c.fill();
+
+    // Front leg
+    c.fillStyle = skinCol;
+    c.fillRect(0, 8 + bodyOff + legOff, 4, 10);
+    c.fillStyle = clothCol;
+    c.fillRect(-1, 6 + bodyOff + legOff, 6, 5);
+
+    // Feet
+    c.fillStyle = skinDark;
+    c.fillRect(-5, 16 + bodyOff - legOff, 5, 3);
+    c.fillRect(0, 16 + bodyOff + legOff, 5, 3);
+
+    // Arms
+    c.fillStyle = skinCol;
+    // Left arm (shield side)
+    c.save();
+    c.translate(-7, 0 + bodyOff);
+    c.rotate(-0.3 + armOff * 0.02);
+    c.fillRect(-2, -1, 4, 8);
+    c.restore();
+
+    // Right arm with club
+    c.save();
+    c.translate(7, 0 + bodyOff);
+    c.rotate(0.3 - armOff * 0.05);
+    c.fillRect(-2, -1, 4, 8);
+
+    // Club/weapon
+    c.fillStyle = '#5a4020';
+    c.fillRect(-2, 6, 4, 12);
+    c.fillStyle = '#3a2a10';
+    c.beginPath();
+    c.arc(0, 18, 4, 0, Math.PI*2);
+    c.fill();
+    c.restore();
+
+    // Head (large and ugly)
+    c.fillStyle = skinCol;
+    c.beginPath();
+    c.ellipse(0, -8 + bodyOff, 9, 8, 0, 0, Math.PI*2);
+    c.fill();
+
+    // Big pointy ears
+    c.fillStyle = skinCol;
+    c.beginPath();
+    c.moveTo(-8, -10 + bodyOff);
+    c.lineTo(-14, -6 + bodyOff);
+    c.lineTo(-8, -4 + bodyOff);
+    c.fill();
+    c.beginPath();
+    c.moveTo(8, -10 + bodyOff);
+    c.lineTo(14, -6 + bodyOff);
+    c.lineTo(8, -4 + bodyOff);
+    c.fill();
+
+    // Inner ears
+    c.fillStyle = '#7a5a4a';
+    c.beginPath();
+    c.moveTo(-9, -9 + bodyOff);
+    c.lineTo(-12, -6 + bodyOff);
+    c.lineTo(-9, -5 + bodyOff);
+    c.fill();
+    c.beginPath();
+    c.moveTo(9, -9 + bodyOff);
+    c.lineTo(12, -6 + bodyOff);
+    c.lineTo(9, -5 + bodyOff);
+    c.fill();
+
+    // Big nose
+    c.fillStyle = skinDark;
+    c.beginPath();
+    c.ellipse(0, -5 + bodyOff, 4, 3, 0, 0, Math.PI*2);
+    c.fill();
+    c.fillStyle = '#2a2a2a';
+    c.fillRect(-2, -5 + bodyOff, 1, 2);
+    c.fillRect(1, -5 + bodyOff, 1, 2);
+
+    // Angry eyes
+    c.fillStyle = '#fff';
+    c.fillRect(-5, -11 + bodyOff, 4, 3);
+    c.fillRect(1, -11 + bodyOff, 4, 3);
+    c.fillStyle = '#ff0';
+    c.fillRect(-4, -10 + bodyOff, 2, 2);
+    c.fillRect(2, -10 + bodyOff, 2, 2);
+    c.fillStyle = '#000';
+    c.fillRect(-3, -10 + bodyOff, 1, 1);
+    c.fillRect(3, -10 + bodyOff, 1, 1);
+
+    // Angry eyebrows
+    c.strokeStyle = skinDark;
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(-6, -13 + bodyOff);
+    c.lineTo(-2, -12 + bodyOff);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(6, -13 + bodyOff);
+    c.lineTo(2, -12 + bodyOff);
+    c.stroke();
+
+    // Mouth with teeth
+    c.fillStyle = '#3a2a2a';
+    c.fillRect(-4, -2 + bodyOff, 8, 3);
+    c.fillStyle = '#fff';
+    c.fillRect(-3, -2 + bodyOff, 2, 2);
+    c.fillRect(1, -2 + bodyOff, 2, 2);
+
+    c.restore();
+
+    // Health bar above goblin
+    const barWidth = 24;
+    const barHeight = 4;
+    const hpPercent = hp / maxHp;
+    c.fillStyle = '#333';
+    c.fillRect(x - barWidth/2, y - 30 * scale, barWidth, barHeight);
+    c.fillStyle = hpPercent > 0.5 ? '#2ecc71' : hpPercent > 0.25 ? '#f39c12' : '#e74c3c';
+    c.fillRect(x - barWidth/2, y - 30 * scale, barWidth * hpPercent, barHeight);
+    c.strokeStyle = '#000';
+    c.lineWidth = 1;
+    c.strokeRect(x - barWidth/2, y - 30 * scale, barWidth, barHeight);
+}
+
 function drawNPC(c, npc, sx, sy) {
     const cols = {guide:'#c9a227', combat:'#8b0000', fishing:'#4a6fa5', cooking:'#cd853f', woodcutting:'#2e8b57'};
     const icons = {guide:'👑', combat:'⚔️', fishing:'🎣', cooking:'🍖', woodcutting:'🪓'};
@@ -423,6 +596,15 @@ function genMap() {
         {id:'cooking',name:'Chef',type:'cooking',x:12,y:29},
         {id:'woodcutting',name:'Forester',type:'woodcutting',x:37,y:27}
     ];
+
+    // Spawn goblins in various locations
+    goblins=[
+        {id:1, name:'Goblin', x:18*TILE, y:15*TILE, tileX:18, tileY:15, hp:5, maxHp:5, dir:1, anim:'idle', frame:0, timer:0, aggroRange:4, attackTimer:0, respawnTimer:0, dead:false},
+        {id:2, name:'Goblin', x:30*TILE, y:22*TILE, tileX:30, tileY:22, hp:5, maxHp:5, dir:-1, anim:'idle', frame:0, timer:0, aggroRange:4, attackTimer:0, respawnTimer:0, dead:false},
+        {id:3, name:'Goblin', x:20*TILE, y:25*TILE, tileX:20, tileY:25, hp:5, maxHp:5, dir:1, anim:'idle', frame:0, timer:0, aggroRange:4, attackTimer:0, respawnTimer:0, dead:false},
+        {id:4, name:'Goblin Scout', x:15*TILE, y:18*TILE, tileX:15, tileY:18, hp:7, maxHp:7, dir:-1, anim:'idle', frame:0, timer:0, aggroRange:5, attackTimer:0, respawnTimer:0, dead:false},
+        {id:5, name:'Goblin Brute', x:32*TILE, y:18*TILE, tileX:32, tileY:18, hp:10, maxHp:10, dir:1, anim:'idle', frame:0, timer:0, aggroRange:3, attackTimer:0, respawnTimer:0, dead:false}
+    ];
 }
 function path(x1,y1,x2,y2){const s=Math.max(Math.abs(x2-x1),Math.abs(y2-y1));for(let i=0;i<=s;i++){const x=Math.round(x1+(x2-x1)*i/s),y=Math.round(y1+(y2-y1)*i/s);if(x>=0&&x<MAP_W&&y>=0&&y<MAP_H){map[y][x]=6;if(x+1<MAP_W)map[y][x+1]=6;}}}
 function area(sx,sy,w,h,t){for(let y=sy;y<sy+h&&y<MAP_H;y++)for(let x=sx;x<sx+w&&x<MAP_W;x++)if(x>=0&&y>=0)map[y][x]=t;}
@@ -491,17 +673,137 @@ function update(dt){
     const spd=player.anim==='walk'?80:player.anim==='attack'?60:120;
     if(player.timer>=spd){player.timer=0;player.frame=(player.frame+1)%8;}
 
+    // Player attacking goblin
+    if(player.attacking){
+        const g = goblins.find(gb => gb.id === player.attacking);
+        if(g && !g.dead){
+            const dist = Math.sqrt((player.x-g.x)**2 + (player.y-g.y)**2);
+            if(dist < TILE * 1.5){
+                player.path = [];
+                player.anim = 'attack';
+                player.dir = g.x > player.x ? 1 : -1;
+                player.attackTimer += dt;
+                if(player.attackTimer >= 800){
+                    player.attackTimer = 0;
+                    const dmg = 1 + Math.floor(Math.random() * player.stats.strength);
+                    g.hp -= dmg;
+                    g.anim = 'hurt';
+                    showDamage(g.x, g.y - 20, dmg, '#ff0');
+                    chat('You hit ' + g.name + ' for ' + dmg + ' damage!');
+                    player.stats.attack += 0.05;
+                    if(g.hp <= 0){
+                        g.dead = true;
+                        g.respawnTimer = 15000;
+                        player.attacking = null;
+                        player.anim = 'idle';
+                        chat(g.name + ' defeated! +10 XP');
+                        player.stats.strength += 0.1;
+                        document.getElementById('stat-attack').textContent = Math.floor(player.stats.attack);
+                        document.getElementById('stat-strength').textContent = Math.floor(player.stats.strength);
+                    }
+                }
+            } else {
+                // Move toward goblin
+                const p = findPath(player.tileX, player.tileY, g.tileX, g.tileY);
+                if(p && p.length > 1) player.path = p.slice(0, -1);
+            }
+        } else {
+            player.attacking = null;
+            player.anim = 'idle';
+        }
+    }
+
     if(player.path.length){
         const n=player.path[0],tx=n.x*TILE,ty=n.y*TILE,dx=tx-player.x,dy=ty-player.y,d=Math.sqrt(dx*dx+dy*dy);
         if(dx>3)player.dir=1;else if(dx<-3)player.dir=-1;
         player.anim='walk';player.moving=true;
         if(d>3){player.x+=dx/d*4;player.y+=dy/d*4;}
-        else{player.x=tx;player.y=ty;player.tileX=n.x;player.tileY=n.y;player.path.shift();if(!player.path.length){player.moving=false;player.anim='idle';player.frame=0;}}
-    }else player.anim='idle';
+        else{player.x=tx;player.y=ty;player.tileX=n.x;player.tileY=n.y;player.path.shift();if(!player.path.length){player.moving=false;if(!player.attacking)player.anim='idle';player.frame=0;}}
+    }else if(!player.attacking) player.anim='idle';
+
+    // Update goblins
+    for(const g of goblins){
+        if(g.dead){
+            g.respawnTimer -= dt;
+            if(g.respawnTimer <= 0){
+                g.dead = false;
+                g.hp = g.maxHp;
+                g.anim = 'idle';
+            }
+            continue;
+        }
+
+        g.timer += dt;
+        const gSpd = g.anim === 'walk' ? 100 : g.anim === 'attack' ? 80 : 150;
+        if(g.timer >= gSpd){ g.timer = 0; g.frame = (g.frame + 1) % 8; }
+
+        // Check distance to player
+        const distToPlayer = Math.sqrt((player.x - g.x)**2 + (player.y - g.y)**2);
+
+        if(distToPlayer < g.aggroRange * TILE){
+            // Aggro - move toward player
+            g.dir = player.x > g.x ? 1 : -1;
+
+            if(distToPlayer < TILE * 1.2){
+                // Attack player
+                g.anim = 'attack';
+                g.attackTimer += dt;
+                if(g.attackTimer >= 1200){
+                    g.attackTimer = 0;
+                    const dmg = Math.max(1, 2 - Math.floor(player.stats.defence / 3));
+                    player.hp -= dmg;
+                    showDamage(player.x, player.y - 30, dmg, '#f55');
+                    chat(g.name + ' hits you for ' + dmg + ' damage!', 'npc');
+                    document.getElementById('health-fill').style.width = (player.hp / player.maxHp * 100) + '%';
+                    if(player.hp <= 0){
+                        chat('You have been defeated! Respawning...', 'system');
+                        player.hp = player.maxHp;
+                        player.x = 25 * TILE;
+                        player.y = 20 * TILE;
+                        player.tileX = 25;
+                        player.tileY = 20;
+                        player.attacking = null;
+                        document.getElementById('health-fill').style.width = '100%';
+                    }
+                }
+            } else {
+                // Move toward player
+                g.anim = 'walk';
+                const dx = player.x - g.x, dy = player.y - g.y;
+                const d = Math.sqrt(dx*dx + dy*dy);
+                if(d > 0){
+                    g.x += (dx / d) * 1.5;
+                    g.y += (dy / d) * 1.5;
+                    g.tileX = Math.floor(g.x / TILE);
+                    g.tileY = Math.floor(g.y / TILE);
+                }
+            }
+        } else {
+            // Idle or wander
+            g.anim = 'idle';
+            g.attackTimer = 0;
+        }
+    }
+
+    // Update damage numbers
+    updateDamageNumbers(dt);
 
     cam.x=player.x-cam.w/2+16;cam.y=player.y-cam.h/2+24;
     cam.x=Math.max(0,Math.min(cam.x,MAP_W*TILE-cam.w));
     cam.y=Math.max(0,Math.min(cam.y,MAP_H*TILE-cam.h));
+}
+
+// Damage number system
+let damageNumbers = [];
+function showDamage(x, y, amt, color) {
+    damageNumbers.push({x, y, amt, color, life: 1000, vy: -2});
+}
+function updateDamageNumbers(dt) {
+    for(let i = damageNumbers.length - 1; i >= 0; i--){
+        damageNumbers[i].y += damageNumbers[i].vy;
+        damageNumbers[i].life -= dt;
+        if(damageNumbers[i].life <= 0) damageNumbers.splice(i, 1);
+    }
 }
 
 function render(){
@@ -513,6 +815,7 @@ function render(){
     const entities = [];
     for(const o of objs) entities.push({type:'obj',data:o,y:o.y});
     for(const n of npcs) entities.push({type:'npc',data:n,y:n.y});
+    for(const g of goblins) if(!g.dead) entities.push({type:'goblin',data:g,y:g.tileY});
     entities.push({type:'player',y:player.tileY});
     entities.sort((a,b)=>a.y-b.y);
 
@@ -523,6 +826,14 @@ function render(){
         }else if(e.type==='npc'){
             const n=e.data,nx=n.x*TILE-cam.x,ny=n.y*TILE-cam.y;
             if(nx>-64&&nx<cam.w+64&&ny>-64&&ny<cam.h+64)drawNPC(ctx,n,nx,ny-16);
+        }else if(e.type==='goblin'){
+            const g=e.data,gx=g.x-cam.x,gy=g.y-cam.y;
+            if(gx>-64&&gx<cam.w+64&&gy>-64&&gy<cam.h+64){
+                drawGoblin(ctx,gx+16,gy+10,1.0,g.dir,g.anim,g.frame,g.hp,g.maxHp);
+                // Goblin name
+                ctx.fillStyle='#f55';ctx.font='bold 10px Arial';ctx.textAlign='center';
+                ctx.fillText(g.name,gx+16,gy-24);
+            }
         }else{
             const px=player.x-cam.x,py=player.y-cam.y;
             drawKnight(ctx,px+16,py+10,1.1,player.dir,player.anim,player.frame);
@@ -545,6 +856,18 @@ function render(){
     }
     miniCtx.fillStyle='#fff';miniCtx.beginPath();miniCtx.arc(70,70,4,0,Math.PI*2);miniCtx.fill();
     miniCtx.fillStyle='#fc5';for(const n of npcs){miniCtx.beginPath();miniCtx.arc(n.x*sc+ox,n.y*sc+oy,3,0,Math.PI*2);miniCtx.fill();}
+    miniCtx.fillStyle='#f55';for(const g of goblins){if(!g.dead){miniCtx.beginPath();miniCtx.arc(g.tileX*sc+ox,g.tileY*sc+oy,2,0,Math.PI*2);miniCtx.fill();}}
+
+    // Render damage numbers
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    for(const d of damageNumbers){
+        const alpha = d.life / 1000;
+        ctx.fillStyle = d.color;
+        ctx.globalAlpha = alpha;
+        ctx.fillText(d.amt, d.x - cam.x, d.y - cam.y);
+    }
+    ctx.globalAlpha = 1;
 }
 
 function loop(t){const dt=t-lastTime;lastTime=t;update(dt);render();requestAnimationFrame(loop);}
@@ -600,6 +923,22 @@ function interact(o){
 
 function onClick(e){
     const r=canvas.getBoundingClientRect(),wx=e.clientX-r.left+cam.x,wy=e.clientY-r.top+cam.y,tx=Math.floor(wx/TILE),ty=Math.floor(wy/TILE);
+
+    // Check for goblin click first
+    for(const g of goblins){
+        if(g.dead) continue;
+        const gTileX = Math.floor(g.x / TILE), gTileY = Math.floor(g.y / TILE);
+        if(Math.abs(gTileX - tx) <= 1 && Math.abs(gTileY - ty) <= 1){
+            player.attacking = g.id;
+            player.attackTimer = 0;
+            chat('Attacking ' + g.name + '!');
+            return;
+        }
+    }
+
+    // Stop attacking if clicking elsewhere
+    player.attacking = null;
+
     for(const n of npcs)if(Math.abs(n.x-tx)<=1&&Math.abs(n.y-ty)<=1){const p=findPath(player.tileX,player.tileY,n.x,n.y+1);if(p){player.path=p;setTimeout(()=>{if(!player.moving)talkNPC(n);},400);}return;}
     for(const o of objs)if(Math.abs(o.x-tx)<=1&&Math.abs(o.y-ty)<=1&&o.act){const p=findPath(player.tileX,player.tileY,o.x,o.y+1);if(p){player.path=p;setTimeout(()=>{if(!player.moving)interact(o);},400);}else interact(o);return;}
     const p=findPath(player.tileX,player.tileY,tx,ty);if(p)player.path=p;
