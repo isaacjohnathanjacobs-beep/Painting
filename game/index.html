@@ -919,7 +919,7 @@ function update(dt){
     // Update damage numbers
     updateDamageNumbers(dt);
 
-    cam.x=player.x-cam.w/2+16;cam.y=player.y-cam.h/2+24;
+    cam.x=Math.floor(player.x-cam.w/2+16);cam.y=Math.floor(player.y-cam.h/2+24);
     cam.x=Math.max(0,Math.min(cam.x,MAP_W*TILE-cam.w));
     cam.y=Math.max(0,Math.min(cam.y,MAP_H*TILE-cam.h));
 }
