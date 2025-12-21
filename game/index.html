@@ -102,16 +102,38 @@
             /* Game UI - Mobile friendly */
             #stats-panel, #inventory-panel, #equipment-panel {
                 top: 50%; left: 50%; transform: translate(-50%, -50%);
-                width: 90%; max-width: 300px; z-index: 50;
+                width: 90%; max-width: 320px; z-index: 150;
+                max-height: 80vh; overflow-y: auto;
             }
+
+            /* Panel close button for mobile */
+            .ui-panel.visible::before {
+                content: '✕';
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                width: 30px;
+                height: 30px;
+                background: rgba(0,0,0,0.5);
+                border: 2px solid #c9a227;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                font-size: 18px;
+                color: #c9a227;
+                z-index: 10;
+            }
+
             #minimap-panel { top: 50px; right: 5px; width: 90px; height: 90px; }
             #minimap { width: 90px; height: 90px; }
             #chat-box { width: calc(100% - 20px); left: 10px; bottom: 65px; height: 100px; font-size: 0.8em; }
-            #action-bar { bottom: 5px; gap: 6px; padding: 8px; }
+            #action-bar { bottom: 5px; gap: 6px; padding: 8px; z-index: 90; }
             .act-btn { width: 50px; height: 50px; font-size: 1.3em; }
             #top-bar { padding: 0 8px; font-size: 0.85em; }
             #health-bar { width: 100px; height: 14px; }
-            #dialogue-box { padding: 10px; }
+            #dialogue-box { padding: 10px; z-index: 200; }
             #npc-portrait { width: 50px; height: 50px; font-size: 1.3em; }
             #tutorial-box { width: 90%; padding: 20px; }
             .inv-slot, .equip-slot { width: 44px; height: 44px; }
@@ -1180,10 +1202,56 @@ function startGame(){
         document.getElementById('btn-equip').classList.remove('active');
     }
 
-    document.getElementById('btn-stats').onclick=()=>{const v=document.getElementById('stats-panel').classList.contains('visible');hideAllPanels();if(!v){document.getElementById('stats-panel').classList.add('visible');document.getElementById('btn-stats').classList.add('active');}};
-    document.getElementById('btn-inv').onclick=()=>{const v=document.getElementById('inventory-panel').classList.contains('visible');hideAllPanels();if(!v){document.getElementById('inventory-panel').classList.add('visible');document.getElementById('btn-inv').classList.add('active');}};
-    document.getElementById('btn-equip').onclick=()=>{const v=document.getElementById('equipment-panel').classList.contains('visible');hideAllPanels();if(!v){document.getElementById('equipment-panel').classList.add('visible');document.getElementById('btn-equip').classList.add('active');updateEquip();}};
-    document.getElementById('btn-map').onclick=()=>{const m=document.getElementById('minimap-panel');m.style.display=m.style.display==='none'?'block':'none';};
+    document.getElementById('btn-stats').onclick=(e)=>{e.stopPropagation();const v=document.getElementById('stats-panel').classList.contains('visible');hideAllPanels();if(!v){document.getElementById('stats-panel').classList.add('visible');document.getElementById('btn-stats').classList.add('active');}};
+    document.getElementById('btn-inv').onclick=(e)=>{e.stopPropagation();const v=document.getElementById('inventory-panel').classList.contains('visible');hideAllPanels();if(!v){document.getElementById('inventory-panel').classList.add('visible');document.getElementById('btn-inv').classList.add('active');}};
+    document.getElementById('btn-equip').onclick=(e)=>{e.stopPropagation();const v=document.getElementById('equipment-panel').classList.contains('visible');hideAllPanels();if(!v){document.getElementById('equipment-panel').classList.add('visible');document.getElementById('btn-equip').classList.add('active');updateEquip();}};
+    document.getElementById('btn-map').onclick=(e)=>{e.stopPropagation();const m=document.getElementById('minimap-panel');m.style.display=m.style.display==='none'?'block':'none';};
+
+    // Close panels when clicking close button area on mobile (top-right corner)
+    function addPanelCloseHandler(panelId) {
+        const panel = document.getElementById(panelId);
+        panel.addEventListener('click', (e) => {
+            const rect = panel.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            // Check if click is in top-right area (close button)
+            if (clickX > rect.width - 50 && clickY < 50) {
+                hideAllPanels();
+            }
+        });
+    }
+    addPanelCloseHandler('stats-panel');
+    addPanelCloseHandler('inventory-panel');
+    addPanelCloseHandler('equipment-panel');
+
+    // Add mobile backdrop for panels
+    const backdrop = document.createElement('div');
+    backdrop.id = 'mobile-panel-backdrop';
+    backdrop.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100;display:none;';
+    document.getElementById('game-ui').appendChild(backdrop);
+    backdrop.onclick = hideAllPanels;
+
+    // Show/hide backdrop when panels open/close
+    const originalHideAll = hideAllPanels;
+    hideAllPanels = function() {
+        originalHideAll();
+        if (window.innerWidth <= 768) backdrop.style.display = 'none';
+    };
+
+    // Override panel show to display backdrop on mobile
+    const showPanelWithBackdrop = (panelId, btnId) => {
+        const isVisible = document.getElementById(panelId).classList.contains('visible');
+        hideAllPanels();
+        if (!isVisible) {
+            document.getElementById(panelId).classList.add('visible');
+            document.getElementById(btnId).classList.add('active');
+            if (window.innerWidth <= 768) backdrop.style.display = 'block';
+        }
+    };
+
+    document.getElementById('btn-stats').onclick = (e) => {e.stopPropagation();showPanelWithBackdrop('stats-panel','btn-stats');};
+    document.getElementById('btn-inv').onclick = (e) => {e.stopPropagation();showPanelWithBackdrop('inventory-panel','btn-inv');};
+    document.getElementById('btn-equip').onclick = (e) => {e.stopPropagation();showPanelWithBackdrop('equipment-panel','btn-equip');updateEquip();};
 
     canvas.onclick=onClick;
 
