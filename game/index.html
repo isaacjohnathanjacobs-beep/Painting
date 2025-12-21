@@ -246,6 +246,7 @@ let ws = null;
 let myPlayerId = null;
 let otherPlayers = new Map(); // Map of playerId -> player data
 let lastUpdateSent = 0;
+let clientGoblinTimers = new Map(); // Client-side attack timers for goblins
 
 // ===================== KNIGHT DRAWING =====================
 function drawKnight(c, x, y, scale, dir, anim, frame) {
@@ -894,9 +895,12 @@ function update(dt){
         if(!g.dead && g.anim === 'attack'){
             const distToPlayer = Math.sqrt((player.x - g.x)**2 + (player.y - g.y)**2);
             if(distToPlayer < TILE * 1.2){
-                g.attackTimer = (g.attackTimer || 0) + dt;
-                if(g.attackTimer >= 1200){
-                    g.attackTimer = 0;
+                // Use client-side timer map (won't be overwritten by server updates)
+                const currentTimer = clientGoblinTimers.get(g.id) || 0;
+                clientGoblinTimers.set(g.id, currentTimer + dt);
+
+                if(currentTimer >= 1200){
+                    clientGoblinTimers.set(g.id, 0);
                     const defBonus = getEquipBonus('def');
                     const dmg = Math.max(1, 3 - Math.floor((player.stats.defence + defBonus) / 2));
                     player.hp -= dmg;
@@ -914,7 +918,13 @@ function update(dt){
                         document.getElementById('health-fill').style.width = '100%';
                     }
                 }
+            } else {
+                // Reset timer if not in range
+                clientGoblinTimers.set(g.id, 0);
             }
+        } else {
+            // Reset timer if not attacking
+            clientGoblinTimers.set(g.id, 0);
         }
     }
 
