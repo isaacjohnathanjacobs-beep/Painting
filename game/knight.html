@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knight's Quest - Tutorial Island</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #1a1a2e; color: #eee; overflow: hidden; width: 100vw; height: 100vh; }
+        .screen { display: none; width: 100%; height: 100%; }
+        .screen.active { display: flex; }
+        #character-creator { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); justify-content: center; align-items: center; }
+        .creator-container { background: rgba(0,0,0,0.7); border: 2px solid #c9a227; border-radius: 12px; padding: 30px; max-width: 450px; width: 90%; text-align: center; box-shadow: 0 0 40px rgba(201,162,39,0.3); }
+        .creator-container h1 { color: #c9a227; margin-bottom: 10px; font-size: 2em; text-shadow: 2px 2px 4px #000; }
+        .creator-container .subtitle { color: #888; margin-bottom: 20px; }
+        #knight-preview { margin: 20px auto; display: block; border: 3px solid #444; border-radius: 8px; background: linear-gradient(180deg, #87CEEB 0%, #5a9a5a 50%, #4a8a4a 100%); image-rendering: pixelated; }
+        .option-group { margin: 20px 0; }
+        .option-group label { color: #c9a227; font-weight: bold; display: block; margin-bottom: 8px; }
+        .option-group input { padding: 12px 20px; border: 2px solid #444; border-radius: 6px; background: #1a1a2e; color: #fff; font-size: 1.1em; width: 100%; max-width: 280px; }
+        .option-group input:focus { outline: none; border-color: #c9a227; }
+        .color-row { display: flex; justify-content: center; gap: 8px; margin-top: 10px; }
+        .color-btn { width: 32px; height: 32px; border: 2px solid #444; border-radius: 4px; cursor: pointer; transition: transform 0.2s; }
+        .color-btn:hover { transform: scale(1.15); }
+        .color-btn.active { border-color: #c9a227; box-shadow: 0 0 8px #c9a227; }
+        .start-btn { margin-top: 25px; padding: 15px 50px; border: none; border-radius: 8px; background: linear-gradient(135deg, #c9a227 0%, #a68523 100%); color: #1a1a2e; font-size: 1.2em; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 2px; }
+        .start-btn:hover { background: linear-gradient(135deg, #d9b237 0%, #b69533 100%); transform: translateY(-2px); box-shadow: 0 5px 20px rgba(201,162,39,0.4); }
+        #game-screen { position: relative; background: #000; }
+        #game-canvas { display: block; image-rendering: pixelated; }
+        #game-ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        #game-ui > * { pointer-events: auto; }
+        #top-bar { position: absolute; top: 0; left: 0; right: 0; height: 40px; background: linear-gradient(180deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 100%); display: flex; align-items: center; padding: 0 15px; gap: 20px; }
+        #player-name-display { color: #5f5; font-weight: bold; }
+        #health-bar { width: 150px; height: 16px; background: #333; border: 2px solid #555; border-radius: 3px; overflow: hidden; }
+        #health-fill { height: 100%; background: linear-gradient(180deg, #e74c3c 0%, #c0392b 100%); width: 100%; transition: width 0.3s; }
+        .ui-panel { position: absolute; background: rgba(20,20,35,0.95); border: 2px solid #c9a227; border-radius: 8px; padding: 12px; display: none; }
+        .ui-panel.visible { display: block; }
+        .ui-panel h3 { color: #c9a227; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #444; text-align: center; font-size: 1em; }
+        #stats-panel { top: 50px; right: 170px; width: 160px; }
+        .stat-row { display: flex; align-items: center; padding: 4px 0; font-size: 0.85em; }
+        .stat-icon { width: 22px; }
+        .stat-name { flex: 1; color: #aaa; }
+        .stat-value { color: #c9a227; font-weight: bold; }
+        #inventory-panel { top: 50px; right: 170px; width: 195px; }
+        #inventory-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+        .inv-slot { width: 40px; height: 40px; background: rgba(0,0,0,0.5); border: 1px solid #444; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 1.4em; cursor: pointer; }
+        .inv-slot:hover { border-color: #c9a227; background: rgba(201,162,39,0.1); }
+        .inv-slot.filled { background: rgba(60,60,80,0.8); }
+        #minimap-panel { position: absolute; top: 50px; right: 10px; border: 2px solid #c9a227; border-radius: 6px; overflow: hidden; }
+        #minimap { background: #1a3a1a; }
+        #chat-box { position: absolute; bottom: 55px; left: 10px; width: 320px; height: 100px; background: rgba(0,0,0,0.85); border: 2px solid #444; border-radius: 6px; }
+        #chat-messages { height: 100%; padding: 8px; overflow-y: auto; font-size: 0.8em; }
+        .chat-msg { margin-bottom: 4px; }
+        .chat-msg.system { color: #5af; }
+        .chat-msg.npc { color: #fc5; }
+        #dialogue-box { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(15,15,30,0.98); padding: 12px 15px; border-top: 2px solid #c9a227; display: flex; gap: 12px; }
+        #dialogue-box.hidden { display: none; }
+        #npc-portrait { width: 50px; height: 50px; background: #2a2a4a; border: 2px solid #c9a227; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.8em; }
+        #dialogue-content { flex: 1; }
+        #npc-name { color: #fc5; font-weight: bold; margin-bottom: 4px; }
+        #dialogue-text { color: #ddd; font-size: 0.9em; margin-bottom: 8px; }
+        #dialogue-options { display: flex; flex-wrap: wrap; gap: 6px; }
+        .dlg-opt { padding: 6px 12px; background: #2a2a4a; border: 1px solid #c9a227; border-radius: 4px; color: #fff; cursor: pointer; font-size: 0.85em; }
+        .dlg-opt:hover { background: #c9a227; color: #1a1a2e; }
+        #action-bar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; background: rgba(0,0,0,0.85); padding: 6px; border-radius: 6px; border: 2px solid #444; }
+        .act-btn { width: 42px; height: 42px; border: 2px solid #444; border-radius: 5px; background: #2a2a4a; color: #fff; font-size: 1.2em; cursor: pointer; }
+        .act-btn:hover { border-color: #c9a227; }
+        .act-btn.active { background: #c9a227; color: #1a1a2e; }
+        #tutorial-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 100; }
+        #tutorial-overlay.hidden { display: none; }
+        #tutorial-box { background: rgba(25,25,45,0.98); border: 3px solid #c9a227; border-radius: 10px; padding: 25px; max-width: 420px; text-align: center; }
+        #tutorial-title { color: #c9a227; font-size: 1.4em; margin-bottom: 12px; }
+        #tutorial-text { color: #ccc; margin-bottom: 18px; line-height: 1.5; }
+        #tutorial-btn { padding: 10px 25px; background: #c9a227; border: none; border-radius: 5px; color: #1a1a2e; font-weight: bold; cursor: pointer; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="character-creator" class="screen active">
+        <div class="creator-container">
+            <h1>⚔️ Knight's Quest</h1>
+            <p class="subtitle">Create Your Hero</p>
+            <canvas id="knight-preview" width="160" height="160"></canvas>
+            <div class="option-group">
+                <label>Knight Name</label>
+                <input type="text" id="char-name" maxlength="12" placeholder="Sir...">
+            </div>
+            <div class="option-group">
+                <label>Armor Color</label>
+                <div class="color-row" id="armor-colors"></div>
+            </div>
+            <div class="option-group">
+                <label>Cape Color</label>
+                <div class="color-row" id="cape-colors"></div>
+            </div>
+            <button id="start-btn" class="start-btn">Begin Quest</button>
+        </div>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <canvas id="game-canvas"></canvas>
+        <div id="game-ui">
+            <div id="top-bar">
+                <span id="player-name-display">Knight</span>
+                <div id="health-bar"><div id="health-fill"></div></div>
+            </div>
+            <div id="stats-panel" class="ui-panel">
+                <h3>⚔️ Skills</h3>
+                <div class="stat-row"><span class="stat-icon">🗡️</span><span class="stat-name">Attack</span><span class="stat-value" id="stat-attack">1</span></div>
+                <div class="stat-row"><span class="stat-icon">🛡️</span><span class="stat-name">Defence</span><span class="stat-value" id="stat-defence">1</span></div>
+                <div class="stat-row"><span class="stat-icon">💪</span><span class="stat-name">Strength</span><span class="stat-value" id="stat-strength">1</span></div>
+                <div class="stat-row"><span class="stat-icon">🎣</span><span class="stat-name">Fishing</span><span class="stat-value" id="stat-fishing">1</span></div>
+                <div class="stat-row"><span class="stat-icon">🍖</span><span class="stat-name">Cooking</span><span class="stat-value" id="stat-cooking">1</span></div>
+                <div class="stat-row"><span class="stat-icon">🪓</span><span class="stat-name">Woodcut</span><span class="stat-value" id="stat-woodcutting">1</span></div>
+            </div>
+            <div id="inventory-panel" class="ui-panel"><h3>🎒 Inventory</h3><div id="inventory-grid"></div></div>
+            <div id="minimap-panel"><canvas id="minimap" width="140" height="140"></canvas></div>
+            <div id="chat-box"><div id="chat-messages"></div></div>
+            <div id="dialogue-box" class="hidden"><div id="npc-portrait"></div><div id="dialogue-content"><p id="npc-name"></p><p id="dialogue-text"></p><div id="dialogue-options"></div></div></div>
+            <div id="action-bar">
+                <button class="act-btn" id="btn-stats">📊</button>
+                <button class="act-btn" id="btn-inv">🎒</button>
+                <button class="act-btn" id="btn-map">🗺️</button>
+            </div>
+        </div>
+        <div id="tutorial-overlay" class="hidden"><div id="tutorial-box"><h3 id="tutorial-title"></h3><p id="tutorial-text"></p><button id="tutorial-btn">Continue</button></div></div>
+    </div>
+
+<script>
+// ===================== CONFIG =====================
+const TILE = 32, MAP_W = 50, MAP_H = 40;
+const ARMOR_COLORS = ['#708090','#4a6fa5','#8b0000','#2e8b57','#4b0082','#cd853f','#2f4f4f','#c9a227'];
+const CAPE_COLORS = ['#8b0000','#00008b','#006400','#4b0082','#8b4513','#c9a227','#2f4f4f','#dc143c'];
+
+let knight = { name:'Knight', armor:0, cape:0 };
+let player = { x:25*TILE, y:20*TILE, tileX:25, tileY:20, path:[], moving:false, dir:1, anim:'idle', frame:0, timer:0, inv:Array(28).fill(null), stats:{attack:1,defence:1,strength:1,fishing:1,cooking:1,woodcutting:1}, hp:10, maxHp:10 };
+let map=[], objs=[], npcs=[];
+let cam={x:0,y:0,w:0,h:0};
+let canvas,ctx,minimap,miniCtx,lastTime=0;
+
+// ===================== KNIGHT DRAWING =====================
+function drawKnight(c, x, y, scale, dir, anim, frame) {
+    c.save();
+    c.translate(x, y);
+    c.scale(scale * dir, scale);
+
+    const armorCol = ARMOR_COLORS[knight.armor];
+    const capeCol = CAPE_COLORS[knight.cape];
+    const metalLight = '#a8a8a8';
+    const metalDark = '#505050';
+    const skin = '#e8c4a0';
+    const eyeCol = '#222';
+
+    // Animation offsets
+    let legOff = 0, armOff = 0, bodyOff = 0, swordAng = 0;
+    const f = frame % 8;
+
+    if (anim === 'walk') {
+        legOff = Math.sin(f * 0.8) * 4;
+        armOff = Math.sin(f * 0.8 + Math.PI) * 3;
+        bodyOff = Math.abs(Math.sin(f * 0.8)) * -1;
+    } else if (anim === 'attack') {
+        swordAng = Math.sin(f * 0.5) * 0.8 - 0.4;
+        armOff = Math.sin(f * 0.5) * 8;
+    } else if (anim === 'idle') {
+        bodyOff = Math.sin(f * 0.15) * 0.5;
+    }
+
+    // Shadow
+    c.fillStyle = 'rgba(0,0,0,0.35)';
+    c.beginPath();
+    c.ellipse(0, 28, 14, 5, 0, 0, Math.PI*2);
+    c.fill();
+
+    // Cape (behind)
+    c.fillStyle = capeCol;
+    c.beginPath();
+    c.moveTo(-6, -8 + bodyOff);
+    c.quadraticCurveTo(-10, 10, -8 + Math.sin(f*0.3)*2, 24);
+    c.lineTo(8 + Math.sin(f*0.3+1)*2, 24);
+    c.quadraticCurveTo(10, 10, 6, -8 + bodyOff);
+    c.fill();
+
+    // Back leg
+    c.fillStyle = metalDark;
+    c.fillRect(-5, 12 + bodyOff - legOff, 5, 14);
+    c.fillStyle = armorCol;
+    c.fillRect(-5, 12 + bodyOff - legOff, 5, 8);
+
+    // Boot back
+    c.fillStyle = '#3a2a1a';
+    c.fillRect(-6, 23 + bodyOff - legOff, 7, 5);
+
+    // Body armor
+    c.fillStyle = armorCol;
+    c.fillRect(-8, -6 + bodyOff, 16, 18);
+
+    // Chest plate highlight
+    c.fillStyle = metalLight;
+    c.fillRect(-6, -4 + bodyOff, 4, 8);
+
+    // Belt
+    c.fillStyle = '#5a4020';
+    c.fillRect(-8, 8 + bodyOff, 16, 4);
+    c.fillStyle = '#c9a227';
+    c.fillRect(-2, 8 + bodyOff, 4, 4);
+
+    // Front leg
+    c.fillStyle = metalDark;
+    c.fillRect(0, 12 + bodyOff + legOff, 5, 14);
+    c.fillStyle = armorCol;
+    c.fillRect(0, 12 + bodyOff + legOff, 5, 8);
+
+    // Boot front
+    c.fillStyle = '#3a2a1a';
+    c.fillRect(-1, 23 + bodyOff + legOff, 7, 5);
+
+    // Shield arm (left side from knight's view)
+    c.save();
+    c.translate(-10, 0 + bodyOff);
+    c.rotate(-0.2 + armOff * 0.02);
+
+    // Arm
+    c.fillStyle = armorCol;
+    c.fillRect(-3, -2, 6, 12);
+
+    // Shield
+    c.fillStyle = '#8b4513';
+    c.beginPath();
+    c.moveTo(-8, 2);
+    c.lineTo(-8, 14);
+    c.lineTo(0, 18);
+    c.lineTo(8, 14);
+    c.lineTo(8, 2);
+    c.closePath();
+    c.fill();
+    c.fillStyle = armorCol;
+    c.beginPath();
+    c.moveTo(-5, 4);
+    c.lineTo(-5, 12);
+    c.lineTo(0, 15);
+    c.lineTo(5, 12);
+    c.lineTo(5, 4);
+    c.closePath();
+    c.fill();
+    c.fillStyle = '#c9a227';
+    c.fillRect(-2, 6, 4, 6);
+    c.restore();
+
+    // Sword arm (right side)
+    c.save();
+    c.translate(10, 2 + bodyOff);
+    c.rotate(swordAng - armOff * 0.03);
+
+    // Arm
+    c.fillStyle = armorCol;
+    c.fillRect(-3, -2, 6, 12);
+
+    // Gauntlet
+    c.fillStyle = metalDark;
+    c.fillRect(-2, 8, 4, 4);
+
+    // Sword
+    c.fillStyle = '#c9a227'; // pommel
+    c.fillRect(-2, 11, 4, 3);
+    c.fillStyle = '#5a4020'; // grip
+    c.fillRect(-1, 14, 2, 6);
+    c.fillStyle = '#c9a227'; // guard
+    c.fillRect(-4, 19, 8, 2);
+    c.fillStyle = metalLight; // blade
+    c.beginPath();
+    c.moveTo(-2, 21);
+    c.lineTo(-2, 38);
+    c.lineTo(0, 42);
+    c.lineTo(2, 38);
+    c.lineTo(2, 21);
+    c.closePath();
+    c.fill();
+    c.fillStyle = '#fff';
+    c.fillRect(-1, 22, 1, 14);
+    c.restore();
+
+    // Helmet
+    c.fillStyle = armorCol;
+    c.beginPath();
+    c.arc(0, -12 + bodyOff, 10, 0, Math.PI * 2);
+    c.fill();
+
+    // Visor
+    c.fillStyle = metalDark;
+    c.fillRect(-8, -15 + bodyOff, 16, 8);
+
+    // Eye slit
+    c.fillStyle = '#111';
+    c.fillRect(-6, -13 + bodyOff, 12, 3);
+
+    // Eye glow (menacing)
+    c.fillStyle = '#ffa500';
+    c.fillRect(-4, -12 + bodyOff, 2, 1);
+    c.fillRect(2, -12 + bodyOff, 2, 1);
+
+    // Helmet crest
+    c.fillStyle = capeCol;
+    c.beginPath();
+    c.moveTo(-2, -22 + bodyOff);
+    c.lineTo(0, -26 + bodyOff + Math.sin(f*0.2)*1);
+    c.lineTo(2, -22 + bodyOff);
+    c.quadraticCurveTo(4, -18, 6, -10 + bodyOff);
+    c.lineTo(-6, -10 + bodyOff);
+    c.quadraticCurveTo(-4, -18, -2, -22 + bodyOff);
+    c.fill();
+
+    // Plume feathers
+    for(let i = 0; i < 5; i++) {
+        c.fillStyle = capeCol;
+        c.beginPath();
+        const px = -3 + i * 1.5;
+        const wave = Math.sin(f * 0.2 + i * 0.5) * 2;
+        c.ellipse(px, -24 + bodyOff + wave, 2, 6, 0.1 * i - 0.2, 0, Math.PI * 2);
+        c.fill();
+    }
+
+    c.restore();
+}
+
+function drawNPC(c, npc, sx, sy) {
+    const cols = {guide:'#c9a227', combat:'#8b0000', fishing:'#4a6fa5', cooking:'#cd853f', woodcutting:'#2e8b57'};
+    const icons = {guide:'👑', combat:'⚔️', fishing:'🎣', cooking:'🍖', woodcutting:'🪓'};
+
+    c.fillStyle = 'rgba(0,0,0,0.3)';
+    c.beginPath();
+    c.ellipse(sx+16, sy+44, 10, 4, 0, 0, Math.PI*2);
+    c.fill();
+
+    // Robe
+    c.fillStyle = cols[npc.type] || '#888';
+    c.beginPath();
+    c.moveTo(sx+8, sy+12);
+    c.lineTo(sx+4, sy+44);
+    c.lineTo(sx+28, sy+44);
+    c.lineTo(sx+24, sy+12);
+    c.fill();
+
+    // Head
+    c.fillStyle = '#e8c4a0';
+    c.beginPath();
+    c.arc(sx+16, sy+8, 8, 0, Math.PI*2);
+    c.fill();
+
+    // Hood/hat
+    c.fillStyle = cols[npc.type] || '#888';
+    c.beginPath();
+    c.arc(sx+16, sy+6, 9, Math.PI, 0);
+    c.fill();
+
+    // Eyes
+    c.fillStyle = '#222';
+    c.fillRect(sx+12, sy+6, 2, 2);
+    c.fillRect(sx+18, sy+6, 2, 2);
+
+    // Marker
+    c.fillStyle = '#c9a227';
+    c.beginPath();
+    c.arc(sx+16, sy-8, 6, 0, Math.PI*2);
+    c.fill();
+    c.font = '10px Arial';
+    c.textAlign = 'center';
+    c.fillText(icons[npc.type]||'❓', sx+16, sy-4);
+
+    c.fillStyle = '#fc5';
+    c.font = 'bold 10px Arial';
+    c.fillText(npc.name, sx+16, sy-18);
+}
+
+// ===================== MAP =====================
+function genMap() {
+    for(let y=0;y<MAP_H;y++){map[y]=[];for(let x=0;x<MAP_W;x++)map[y][x]=1;}
+    const cx=25,cy=20;
+    for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
+        const dx=(x-cx)/18,dy=(y-cy)/14,d=Math.sqrt(dx*dx+dy*dy),n=Math.sin(x*0.5)*0.1+Math.cos(y*0.3)*0.1;
+        if(d+n<0.85)map[y][x]=0;else if(d+n<1)map[y][x]=2;
+    }
+    path(12,20,38,20);path(25,10,25,30);path(25,10,35,10);path(25,30,15,30);
+    area(33,8,6,4,3);area(10,28,6,4,3);area(35,25,5,5,3);area(22,18,7,5,3);
+
+    objs=[
+        {t:'tree',x:38,y:28},{t:'tree',x:39,y:29},{t:'tree',x:37,y:30},{t:'tree',x:20,y:14},{t:'tree',x:30,y:14},{t:'tree',x:40,y:26},
+        {t:'fish',x:36,y:7,act:'fish'},{t:'fire',x:12,y:30,act:'cook'},
+        {t:'sign',x:24,y:17,txt:'Welcome to Tutorial Island!'},{t:'sign',x:35,y:11,txt:'Fishing Dock'},{t:'sign',x:38,y:28,txt:'Woodcutting'},{t:'sign',x:11,y:31,txt:'Cooking Fire'}
+    ];
+    npcs=[
+        {id:'guide',name:'Guide',type:'guide',x:24,y:19},
+        {id:'fishing',name:'Fisher',type:'fishing',x:35,y:9},
+        {id:'cooking',name:'Chef',type:'cooking',x:12,y:29},
+        {id:'woodcutting',name:'Forester',type:'woodcutting',x:37,y:27}
+    ];
+}
+function path(x1,y1,x2,y2){const s=Math.max(Math.abs(x2-x1),Math.abs(y2-y1));for(let i=0;i<=s;i++){const x=Math.round(x1+(x2-x1)*i/s),y=Math.round(y1+(y2-y1)*i/s);if(x>=0&&x<MAP_W&&y>=0&&y<MAP_H){map[y][x]=6;if(x+1<MAP_W)map[y][x+1]=6;}}}
+function area(sx,sy,w,h,t){for(let y=sy;y<sy+h&&y<MAP_H;y++)for(let x=sx;x<sx+w&&x<MAP_W;x++)if(x>=0&&y>=0)map[y][x]=t;}
+function walkable(x,y){if(x<0||x>=MAP_W||y<0||y>=MAP_H||map[y][x]===1)return false;for(const o of objs)if(o.x===x&&o.y===y&&o.t==='tree')return false;return true;}
+
+// ===================== PATHFINDING =====================
+function findPath(sx,sy,ex,ey){
+    if(!walkable(ex,ey))return null;
+    const open=[{x:sx,y:sy,g:0,f:0,p:null}],closed=new Set();
+    while(open.length){
+        open.sort((a,b)=>a.f-b.f);
+        const c=open.shift(),k=c.x+','+c.y;
+        if(c.x===ex&&c.y===ey){const p=[];let n=c;while(n.p){p.unshift({x:n.x,y:n.y});n=n.p;}return p;}
+        closed.add(k);
+        for(const[dx,dy]of[[0,-1],[0,1],[-1,0],[1,0],[-1,-1],[1,-1],[-1,1],[1,1]]){
+            const nx=c.x+dx,ny=c.y+dy,nk=nx+','+ny;
+            if(closed.has(nk)||!walkable(nx,ny))continue;
+            if(dx&&dy&&(!walkable(c.x+dx,c.y)||!walkable(c.x,c.y+dy)))continue;
+            const g=c.g+(dx&&dy?1.414:1),h=Math.sqrt((ex-nx)**2+(ey-ny)**2);
+            const ex2=open.find(n=>n.x===nx&&n.y===ny);
+            if(!ex2||g<ex2.g){if(ex2)open.splice(open.indexOf(ex2),1);open.push({x:nx,y:ny,g,f:g+h,p:c});}
+        }
+    }
+    return null;
+}
+
+// ===================== DRAWING =====================
+function drawTile(c,t,x,y){
+    const cols={0:['#4a7c23','#5a8c33','#3a6c13'],1:['#2980b9','#3498db','#2471a3'],2:['#d4a574','#c9986a','#deb584'],3:['#7f8c8d','#95a5a6','#6d7b7c'],6:['#BDB76B','#CDC673','#ADAD5C']};
+    const cl=cols[t]||cols[0];
+    c.fillStyle=cl[(Math.floor(x/TILE)+Math.floor(y/TILE))%3];
+    c.fillRect(x,y,TILE,TILE);
+    if(t===1){c.fillStyle='rgba(255,255,255,0.2)';c.fillRect(x+4+Math.sin(Date.now()/500+x)*2,y+4,TILE-8,2);}
+}
+
+function drawObj(c,o,x,y){
+    c.save();c.translate(x,y);
+    if(o.t==='tree'){
+        c.fillStyle='#6b4423';c.fillRect(10,22,12,22);
+        c.fillStyle='#228b22';c.beginPath();c.arc(16,14,18,0,Math.PI*2);c.fill();
+        c.fillStyle='#1e7b1e';c.beginPath();c.arc(16,10,13,0,Math.PI*2);c.fill();
+        c.fillStyle='#2a9b2a';c.beginPath();c.arc(10,16,8,0,Math.PI*2);c.fill();
+    }else if(o.t==='fish'){
+        c.fillStyle='#2980b9';c.beginPath();c.ellipse(16,20,14,8,0,0,Math.PI*2);c.fill();
+        c.fillStyle='rgba(255,255,255,0.6)';
+        c.beginPath();c.arc(10+Math.sin(Date.now()/300)*4,18,3,0,Math.PI*2);c.fill();
+        c.beginPath();c.arc(22,16+Math.cos(Date.now()/400)*3,2,0,Math.PI*2);c.fill();
+    }else if(o.t==='fire'){
+        c.fillStyle='#5a3a1a';c.fillRect(4,28,24,6);
+        const fl=Math.sin(Date.now()/100)*4;
+        c.fillStyle='#ff4500';c.beginPath();c.moveTo(16,2+fl);c.lineTo(6,28);c.lineTo(26,28);c.fill();
+        c.fillStyle='#ffd700';c.beginPath();c.moveTo(16,10+fl);c.lineTo(10,26);c.lineTo(22,26);c.fill();
+        c.fillStyle='#fff';c.beginPath();c.moveTo(16,16+fl);c.lineTo(13,24);c.lineTo(19,24);c.fill();
+    }else if(o.t==='sign'){
+        c.fillStyle='#6b4423';c.fillRect(13,18,6,18);
+        c.fillStyle='#deb887';c.fillRect(2,4,28,16);
+        c.strokeStyle='#5a3a1a';c.lineWidth=2;c.strokeRect(2,4,28,16);
+        c.fillStyle='#5a3a1a';c.font='8px Arial';c.textAlign='center';c.fillText('READ',16,14);
+    }
+    c.restore();
+}
+
+// ===================== GAME LOOP =====================
+function update(dt){
+    player.timer+=dt;
+    const spd=player.anim==='walk'?80:player.anim==='attack'?60:120;
+    if(player.timer>=spd){player.timer=0;player.frame=(player.frame+1)%8;}
+
+    if(player.path.length){
+        const n=player.path[0],tx=n.x*TILE,ty=n.y*TILE,dx=tx-player.x,dy=ty-player.y,d=Math.sqrt(dx*dx+dy*dy);
+        if(dx>3)player.dir=1;else if(dx<-3)player.dir=-1;
+        player.anim='walk';player.moving=true;
+        if(d>3){player.x+=dx/d*4;player.y+=dy/d*4;}
+        else{player.x=tx;player.y=ty;player.tileX=n.x;player.tileY=n.y;player.path.shift();if(!player.path.length){player.moving=false;player.anim='idle';player.frame=0;}}
+    }else player.anim='idle';
+
+    cam.x=player.x-cam.w/2+16;cam.y=player.y-cam.h/2+24;
+    cam.x=Math.max(0,Math.min(cam.x,MAP_W*TILE-cam.w));
+    cam.y=Math.max(0,Math.min(cam.y,MAP_H*TILE-cam.h));
+}
+
+function render(){
+    ctx.fillStyle='#1a1a2e';ctx.fillRect(0,0,canvas.width,canvas.height);
+    const sx=Math.floor(cam.x/TILE),sy=Math.floor(cam.y/TILE),ex=Math.ceil((cam.x+cam.w)/TILE)+1,ey=Math.ceil((cam.y+cam.h)/TILE)+1;
+    for(let y=sy;y<ey&&y<MAP_H;y++)for(let x=sx;x<ex&&x<MAP_W;x++)if(x>=0&&y>=0)drawTile(ctx,map[y][x],x*TILE-cam.x,y*TILE-cam.y);
+
+    // Sort all entities by Y for depth
+    const entities = [];
+    for(const o of objs) entities.push({type:'obj',data:o,y:o.y});
+    for(const n of npcs) entities.push({type:'npc',data:n,y:n.y});
+    entities.push({type:'player',y:player.tileY});
+    entities.sort((a,b)=>a.y-b.y);
+
+    for(const e of entities){
+        if(e.type==='obj'){
+            const o=e.data,ox=o.x*TILE-cam.x,oy=o.y*TILE-cam.y;
+            if(ox>-64&&ox<cam.w+64&&oy>-64&&oy<cam.h+64)drawObj(ctx,o,ox,oy-16);
+        }else if(e.type==='npc'){
+            const n=e.data,nx=n.x*TILE-cam.x,ny=n.y*TILE-cam.y;
+            if(nx>-64&&nx<cam.w+64&&ny>-64&&ny<cam.h+64)drawNPC(ctx,n,nx,ny-16);
+        }else{
+            const px=player.x-cam.x,py=player.y-cam.y;
+            drawKnight(ctx,px+16,py+10,1.1,player.dir,player.anim,player.frame);
+            ctx.fillStyle='#5f5';ctx.font='bold 11px Arial';ctx.textAlign='center';
+            ctx.fillText(knight.name,px+16,py-36);
+        }
+    }
+
+    if(player.path.length){const l=player.path[player.path.length-1];ctx.strokeStyle='#c9a227';ctx.lineWidth=2;ctx.strokeRect(l.x*TILE-cam.x,l.y*TILE-cam.y,TILE,TILE);}
+
+    // Minimap
+    miniCtx.fillStyle='#1a2a1a';miniCtx.fillRect(0,0,140,140);
+    const sc=2.8,ox=70-player.tileX*sc,oy=70-player.tileY*sc;
+    for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
+        const mx=x*sc+ox,my=y*sc+oy;
+        if(mx<-sc||mx>140||my<-sc||my>140)continue;
+        const t=map[y][x];
+        miniCtx.fillStyle=t===1?'#2980b9':t===2?'#d4a574':t===3?'#7f8c8d':t===6?'#bdb76b':'#4a7c23';
+        miniCtx.fillRect(mx,my,sc,sc);
+    }
+    miniCtx.fillStyle='#fff';miniCtx.beginPath();miniCtx.arc(70,70,4,0,Math.PI*2);miniCtx.fill();
+    miniCtx.fillStyle='#fc5';for(const n of npcs){miniCtx.beginPath();miniCtx.arc(n.x*sc+ox,n.y*sc+oy,3,0,Math.PI*2);miniCtx.fill();}
+}
+
+function loop(t){const dt=t-lastTime;lastTime=t;update(dt);render();requestAnimationFrame(loop);}
+
+// ===================== UI =====================
+function chat(m,t='system'){const d=document.createElement('div');d.className='chat-msg '+t;d.textContent=m;document.getElementById('chat-messages').appendChild(d);document.getElementById('chat-messages').scrollTop=99999;}
+function showDlg(name,txt,opts,type){
+    document.getElementById('dialogue-box').classList.remove('hidden');
+    document.getElementById('npc-name').textContent=name;
+    document.getElementById('dialogue-text').textContent=txt;
+    document.getElementById('npc-portrait').textContent={guide:'👑',fishing:'🎣',cooking:'🍖',woodcutting:'🪓'}[type]||'👤';
+    const od=document.getElementById('dialogue-options');od.innerHTML='';
+    for(const o of opts){const b=document.createElement('button');b.className='dlg-opt';b.textContent=o.text;b.onclick=o.fn;od.appendChild(b);}
+}
+function hideDlg(){document.getElementById('dialogue-box').classList.add('hidden');}
+function updateInv(){
+    const g=document.getElementById('inventory-grid');g.innerHTML='';
+    for(let i=0;i<28;i++){const s=document.createElement('div');s.className='inv-slot'+(player.inv[i]?' filled':'');s.textContent=player.inv[i]?.icon||'';s.title=player.inv[i]?.name||'';g.appendChild(s);}
+}
+function addInv(item){const i=player.inv.findIndex(s=>!s);if(i!==-1){player.inv[i]=item;updateInv();return true;}chat('Inventory full!');return false;}
+function showTut(title,txt){document.getElementById('tutorial-title').textContent=title;document.getElementById('tutorial-text').textContent=txt;document.getElementById('tutorial-overlay').classList.remove('hidden');}
+function hideTut(){document.getElementById('tutorial-overlay').classList.add('hidden');}
+
+// ===================== INTERACTIONS =====================
+function talkNPC(n){
+    const dlgs={
+        guide:{txt:"Greetings, brave knight! Welcome to Tutorial Island. Speak with the tutors to learn valuable skills for your quest!",opts:[{text:"Where should I go?",fn:()=>{hideDlg();chat("Visit the Fisher to the east for supplies!",'npc');}},{text:"Thank you!",fn:hideDlg}]},
+        fishing:{txt:"Ahoy! Want to learn fishing? Take this net and click on the bubbling water!",opts:[{text:"Give me a net!",fn:()=>{hideDlg();addInv({id:'net',name:'Fishing Net',icon:'🥅'});chat("Received: Fishing Net!");}},{text:"Later.",fn:hideDlg}]},
+        cooking:{txt:"Hungry? I can teach you to cook! Use the fire with raw fish to make a meal.",opts:[{text:"I understand!",fn:hideDlg}]},
+        woodcutting:{txt:"Need wood? Take this axe and chop those trees!",opts:[{text:"Thanks!",fn:()=>{hideDlg();addInv({id:'axe',name:'Bronze Axe',icon:'🪓'});chat("Received: Bronze Axe!");}},{text:"Not now.",fn:hideDlg}]}
+    };
+    const d=dlgs[n.type]||dlgs.guide;
+    showDlg(n.name,d.txt,d.opts,n.type);
+}
+
+function interact(o){
+    if(o.t==='sign'){chat(o.txt);}
+    else if(o.t==='fish'){
+        if(!player.inv.find(i=>i?.id==='net')){chat("Need a fishing net! Talk to Fisher.");return;}
+        chat("You catch some shrimp!");addInv({id:'shrimp',name:'Raw Shrimp',icon:'🦐'});
+        player.stats.fishing++;document.getElementById('stat-fishing').textContent=player.stats.fishing;
+    }else if(o.t==='fire'){
+        const i=player.inv.findIndex(x=>x?.id==='shrimp');
+        if(i===-1){chat("Need raw fish to cook.");return;}
+        player.inv[i]={id:'food',name:'Cooked Shrimp',icon:'🍖'};updateInv();
+        chat("You cook the shrimp!");player.stats.cooking++;document.getElementById('stat-cooking').textContent=player.stats.cooking;
+    }else if(o.t==='tree'){
+        if(!player.inv.find(i=>i?.id==='axe')){chat("Need an axe! Talk to Forester.");return;}
+        chat("You chop the tree!");addInv({id:'logs',name:'Logs',icon:'🪵'});
+        player.stats.woodcutting++;document.getElementById('stat-woodcutting').textContent=player.stats.woodcutting;
+    }
+}
+
+function onClick(e){
+    const r=canvas.getBoundingClientRect(),wx=e.clientX-r.left+cam.x,wy=e.clientY-r.top+cam.y,tx=Math.floor(wx/TILE),ty=Math.floor(wy/TILE);
+    for(const n of npcs)if(Math.abs(n.x-tx)<=1&&Math.abs(n.y-ty)<=1){const p=findPath(player.tileX,player.tileY,n.x,n.y+1);if(p){player.path=p;setTimeout(()=>{if(!player.moving)talkNPC(n);},400);}return;}
+    for(const o of objs)if(Math.abs(o.x-tx)<=1&&Math.abs(o.y-ty)<=1&&o.act){const p=findPath(player.tileX,player.tileY,o.x,o.y+1);if(p){player.path=p;setTimeout(()=>{if(!player.moving)interact(o);},400);}else interact(o);return;}
+    const p=findPath(player.tileX,player.tileY,tx,ty);if(p)player.path=p;
+}
+
+// ===================== INIT =====================
+function initCreator(){
+    const pv=document.getElementById('knight-preview'),pc=pv.getContext('2d');
+    let pf=0;
+    function animPrev(){
+        pc.fillStyle='#87CEEB';pc.fillRect(0,0,160,80);
+        pc.fillStyle='#5a9a5a';pc.fillRect(0,80,160,80);
+        drawKnight(pc,80,100,1.3,1,'idle',pf);
+        pf=(pf+0.06)%8;
+        requestAnimationFrame(animPrev);
+    }
+    animPrev();
+
+    const ac=document.getElementById('armor-colors'),cc=document.getElementById('cape-colors');
+    ARMOR_COLORS.forEach((c,i)=>{const b=document.createElement('div');b.className='color-btn'+(i===0?' active':'');b.style.background=c;b.onclick=()=>{document.querySelectorAll('#armor-colors .color-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');knight.armor=i;};ac.appendChild(b);});
+    CAPE_COLORS.forEach((c,i)=>{const b=document.createElement('div');b.className='color-btn'+(i===0?' active':'');b.style.background=c;b.onclick=()=>{document.querySelectorAll('#cape-colors .color-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');knight.cape=i;};cc.appendChild(b);});
+
+    document.getElementById('char-name').addEventListener('input',e=>{knight.name=e.target.value||'Knight';});
+    document.getElementById('start-btn').onclick=startGame;
+}
+
+function startGame(){
+    if(!knight.name)knight.name='Knight';
+    document.getElementById('character-creator').classList.remove('active');
+    document.getElementById('game-screen').classList.add('active');
+
+    canvas=document.getElementById('game-canvas');ctx=canvas.getContext('2d');
+    minimap=document.getElementById('minimap');miniCtx=minimap.getContext('2d');
+    canvas.width=innerWidth;canvas.height=innerHeight;cam.w=canvas.width;cam.h=canvas.height;
+    addEventListener('resize',()=>{canvas.width=innerWidth;canvas.height=innerHeight;cam.w=canvas.width;cam.h=canvas.height;});
+
+    genMap();
+    document.getElementById('player-name-display').textContent=knight.name;
+    updateInv();
+
+    document.getElementById('inventory-panel').classList.add('visible');
+    document.getElementById('btn-inv').classList.add('active');
+
+    document.getElementById('btn-stats').onclick=()=>{document.getElementById('stats-panel').classList.toggle('visible');document.getElementById('inventory-panel').classList.remove('visible');document.getElementById('btn-stats').classList.toggle('active');document.getElementById('btn-inv').classList.remove('active');};
+    document.getElementById('btn-inv').onclick=()=>{document.getElementById('inventory-panel').classList.toggle('visible');document.getElementById('stats-panel').classList.remove('visible');document.getElementById('btn-inv').classList.toggle('active');document.getElementById('btn-stats').classList.remove('active');};
+    document.getElementById('btn-map').onclick=()=>{const m=document.getElementById('minimap-panel');m.style.display=m.style.display==='none'?'block':'none';};
+
+    canvas.onclick=onClick;
+    document.getElementById('tutorial-btn').onclick=hideTut;
+
+    showTut('⚔️ Welcome, '+knight.name+'!','Click anywhere to move your knight. Talk to NPCs with yellow markers to learn skills and receive equipment!');
+    chat('Welcome, Sir '+knight.name+'!');
+    chat('Click to move. Talk to NPCs!');
+
+    lastTime=performance.now();
+    requestAnimationFrame(loop);
+}
+
+document.addEventListener('DOMContentLoaded',initCreator);
+</script>
+</body>
+</html>
