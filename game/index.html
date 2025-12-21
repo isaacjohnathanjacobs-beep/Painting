@@ -788,6 +788,8 @@ function findPath(sx,sy,ex,ey){
 
 // ===================== DRAWING =====================
 function drawTile(c,t,x,y){
+    x = Math.floor(x);
+    y = Math.floor(y);
     const cols={0:['#4a7c23','#5a8c33','#3a6c13'],1:['#2980b9','#3498db','#2471a3'],2:['#d4a574','#c9986a','#deb584'],3:['#7f8c8d','#95a5a6','#6d7b7c'],6:['#BDB76B','#CDC673','#ADAD5C']};
     const cl=cols[t]||cols[0];
     c.fillStyle=cl[(Math.floor(x/TILE)+Math.floor(y/TILE))%3];
