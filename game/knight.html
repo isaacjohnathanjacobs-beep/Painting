@@ -45,6 +45,16 @@
         .inv-slot { width: 40px; height: 40px; background: rgba(0,0,0,0.5); border: 1px solid #444; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 1.4em; cursor: pointer; }
         .inv-slot:hover { border-color: #c9a227; background: rgba(201,162,39,0.1); }
         .inv-slot.filled { background: rgba(60,60,80,0.8); }
+        #equipment-panel { top: 50px; right: 170px; width: 180px; }
+        .equip-grid { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .equip-row { display: flex; gap: 4px; justify-content: center; }
+        .equip-slot { width: 44px; height: 44px; background: rgba(0,0,0,0.5); border: 2px solid #555; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.5em; cursor: pointer; position: relative; }
+        .equip-slot:hover { border-color: #c9a227; background: rgba(201,162,39,0.1); }
+        .equip-slot.filled { background: rgba(60,60,80,0.8); border-color: #c9a227; }
+        .equip-slot::after { content: attr(data-label); position: absolute; bottom: -14px; font-size: 0.6em; color: #888; }
+        .equip-stats { margin-top: 15px; padding-top: 8px; border-top: 1px solid #444; font-size: 0.8em; }
+        .equip-stats div { display: flex; justify-content: space-between; padding: 2px 0; }
+        .equip-stats span:last-child { color: #5f5; }
         #minimap-panel { position: absolute; top: 50px; right: 10px; border: 2px solid #c9a227; border-radius: 6px; overflow: hidden; }
         #minimap { background: #1a3a1a; }
         #chat-box { position: absolute; bottom: 55px; left: 10px; width: 320px; height: 100px; background: rgba(0,0,0,0.85); border: 2px solid #444; border-radius: 6px; }
@@ -113,12 +123,31 @@
                 <div class="stat-row"><span class="stat-icon">🪓</span><span class="stat-name">Woodcut</span><span class="stat-value" id="stat-woodcutting">1</span></div>
             </div>
             <div id="inventory-panel" class="ui-panel"><h3>🎒 Inventory</h3><div id="inventory-grid"></div></div>
+            <div id="equipment-panel" class="ui-panel">
+                <h3>⚔️ Equipment</h3>
+                <div class="equip-grid">
+                    <div class="equip-row"><div class="equip-slot" id="equip-head" data-label="Head"></div></div>
+                    <div class="equip-row">
+                        <div class="equip-slot" id="equip-weapon" data-label="Weapon"></div>
+                        <div class="equip-slot" id="equip-body" data-label="Body"></div>
+                        <div class="equip-slot" id="equip-shield" data-label="Shield"></div>
+                    </div>
+                    <div class="equip-row"><div class="equip-slot" id="equip-legs" data-label="Legs"></div></div>
+                    <div class="equip-row"><div class="equip-slot" id="equip-boots" data-label="Boots"></div></div>
+                </div>
+                <div class="equip-stats">
+                    <div><span>Attack Bonus:</span><span id="equip-atk">+0</span></div>
+                    <div><span>Defence Bonus:</span><span id="equip-def">+0</span></div>
+                    <div><span>Strength Bonus:</span><span id="equip-str">+0</span></div>
+                </div>
+            </div>
             <div id="minimap-panel"><canvas id="minimap" width="140" height="140"></canvas></div>
             <div id="chat-box"><div id="chat-messages"></div></div>
             <div id="dialogue-box" class="hidden"><div id="npc-portrait"></div><div id="dialogue-content"><p id="npc-name"></p><p id="dialogue-text"></p><div id="dialogue-options"></div></div></div>
             <div id="action-bar">
                 <button class="act-btn" id="btn-stats">📊</button>
                 <button class="act-btn" id="btn-inv">🎒</button>
+                <button class="act-btn" id="btn-equip">⚔️</button>
                 <button class="act-btn" id="btn-map">🗺️</button>
             </div>
         </div>
@@ -132,7 +161,7 @@ const ARMOR_COLORS = ['#708090','#4a6fa5','#8b0000','#2e8b57','#4b0082','#cd853f
 const CAPE_COLORS = ['#8b0000','#00008b','#006400','#4b0082','#8b4513','#c9a227','#2f4f4f','#dc143c'];
 
 let knight = { name:'Knight', armor:0, cape:0 };
-let player = { x:25*TILE, y:20*TILE, tileX:25, tileY:20, path:[], moving:false, dir:1, anim:'idle', frame:0, timer:0, inv:Array(28).fill(null), stats:{attack:1,defence:1,strength:1,fishing:1,cooking:1,woodcutting:1}, hp:10, maxHp:10, attacking:null, attackTimer:0 };
+let player = { x:25*TILE, y:20*TILE, tileX:25, tileY:20, path:[], moving:false, dir:1, anim:'idle', frame:0, timer:0, inv:Array(28).fill(null), stats:{attack:1,defence:1,strength:1,fishing:1,cooking:1,woodcutting:1}, hp:10, maxHp:10, attacking:null, attackTimer:0, equipment:{head:null,body:null,legs:null,boots:null,weapon:null,shield:null} };
 let map=[], objs=[], npcs=[], goblins=[];
 let cam={x:0,y:0,w:0,h:0};
 let canvas,ctx,minimap,miniCtx,lastTime=0;
@@ -586,12 +615,13 @@ function genMap() {
     area(33,8,6,4,3);area(10,28,6,4,3);area(35,25,5,5,3);area(22,18,7,5,3);
 
     objs=[
-        {t:'tree',x:38,y:28},{t:'tree',x:39,y:29},{t:'tree',x:37,y:30},{t:'tree',x:20,y:14},{t:'tree',x:30,y:14},{t:'tree',x:40,y:26},
+        {t:'tree',x:38,y:28,act:'chop'},{t:'tree',x:39,y:29,act:'chop'},{t:'tree',x:37,y:30,act:'chop'},{t:'tree',x:20,y:14,act:'chop'},{t:'tree',x:30,y:14,act:'chop'},{t:'tree',x:40,y:26,act:'chop'},
         {t:'fish',x:36,y:7,act:'fish'},{t:'fire',x:12,y:30,act:'cook'},
         {t:'sign',x:24,y:17,txt:'Welcome to Tutorial Island!'},{t:'sign',x:35,y:11,txt:'Fishing Dock'},{t:'sign',x:38,y:28,txt:'Woodcutting'},{t:'sign',x:11,y:31,txt:'Cooking Fire'}
     ];
     npcs=[
         {id:'guide',name:'Guide',type:'guide',x:24,y:19},
+        {id:'combat',name:'Combat Tutor',type:'combat',x:28,y:23},
         {id:'fishing',name:'Fisher',type:'fishing',x:35,y:9},
         {id:'cooking',name:'Chef',type:'cooking',x:12,y:29},
         {id:'woodcutting',name:'Forester',type:'woodcutting',x:37,y:27}
@@ -685,7 +715,9 @@ function update(dt){
                 player.attackTimer += dt;
                 if(player.attackTimer >= 800){
                     player.attackTimer = 0;
-                    const dmg = 1 + Math.floor(Math.random() * player.stats.strength);
+                    const atkBonus = getEquipBonus('atk');
+                    const strBonus = getEquipBonus('str');
+                    const dmg = 1 + Math.floor(Math.random() * (player.stats.strength + strBonus)) + Math.floor(atkBonus / 2);
                     g.hp -= dmg;
                     g.anim = 'hurt';
                     showDamage(g.x, g.y - 20, dmg, '#ff0');
@@ -750,7 +782,8 @@ function update(dt){
                 g.attackTimer += dt;
                 if(g.attackTimer >= 1200){
                     g.attackTimer = 0;
-                    const dmg = Math.max(1, 2 - Math.floor(player.stats.defence / 3));
+                    const defBonus = getEquipBonus('def');
+                    const dmg = Math.max(1, 3 - Math.floor((player.stats.defence + defBonus) / 2));
                     player.hp -= dmg;
                     showDamage(player.x, player.y - 30, dmg, '#f55');
                     chat(g.name + ' hits you for ' + dmg + ' damage!', 'npc');
@@ -885,16 +918,119 @@ function showDlg(name,txt,opts,type){
 function hideDlg(){document.getElementById('dialogue-box').classList.add('hidden');}
 function updateInv(){
     const g=document.getElementById('inventory-grid');g.innerHTML='';
-    for(let i=0;i<28;i++){const s=document.createElement('div');s.className='inv-slot'+(player.inv[i]?' filled':'');s.textContent=player.inv[i]?.icon||'';s.title=player.inv[i]?.name||'';g.appendChild(s);}
+    for(let i=0;i<28;i++){
+        const s=document.createElement('div');
+        s.className='inv-slot'+(player.inv[i]?' filled':'');
+        s.textContent=player.inv[i]?.icon||'';
+        s.title=player.inv[i]?.name||'';
+        if(player.inv[i]?.slot){
+            s.style.cursor='pointer';
+            s.onclick=(()=>{const idx=i;return()=>equipItem(idx);})();
+        }
+        g.appendChild(s);
+    }
 }
 function addInv(item){const i=player.inv.findIndex(s=>!s);if(i!==-1){player.inv[i]=item;updateInv();return true;}chat('Inventory full!');return false;}
+
+// Equipment items database
+const EQUIPMENT = {
+    'bronze_sword':{id:'bronze_sword',name:'Bronze Sword',icon:'🗡️',slot:'weapon',atk:2,def:0,str:1},
+    'iron_sword':{id:'iron_sword',name:'Iron Sword',icon:'⚔️',slot:'weapon',atk:4,def:0,str:2},
+    'wooden_shield':{id:'wooden_shield',name:'Wooden Shield',icon:'🛡️',slot:'shield',atk:0,def:3,str:0},
+    'bronze_helm':{id:'bronze_helm',name:'Bronze Helm',icon:'⛑️',slot:'head',atk:0,def:2,str:0},
+    'leather_body':{id:'leather_body',name:'Leather Body',icon:'🦺',slot:'body',atk:0,def:3,str:0},
+    'leather_boots':{id:'leather_boots',name:'Leather Boots',icon:'👢',slot:'boots',atk:0,def:1,str:0}
+};
+
+function equipItem(invIdx){
+    const item = player.inv[invIdx];
+    if(!item || !item.slot) return;
+
+    const slot = item.slot;
+    const current = player.equipment[slot];
+
+    // Unequip current item if any
+    if(current){
+        player.inv[invIdx] = current;
+    } else {
+        player.inv[invIdx] = null;
+    }
+
+    // Equip new item
+    player.equipment[slot] = item;
+    chat('Equipped: ' + item.name);
+
+    updateInv();
+    updateEquip();
+}
+
+function unequipItem(slot){
+    const item = player.equipment[slot];
+    if(!item) return;
+
+    const freeSlot = player.inv.findIndex(s => !s);
+    if(freeSlot === -1){
+        chat('Inventory full!');
+        return;
+    }
+
+    player.inv[freeSlot] = item;
+    player.equipment[slot] = null;
+    chat('Unequipped: ' + item.name);
+
+    updateInv();
+    updateEquip();
+}
+
+function updateEquip(){
+    const slots = ['head','weapon','body','shield','legs','boots'];
+    for(const slot of slots){
+        const el = document.getElementById('equip-'+slot);
+        const item = player.equipment[slot];
+        el.textContent = item?.icon || '';
+        el.className = 'equip-slot' + (item ? ' filled' : '');
+        el.title = item?.name || '';
+        el.onclick = item ? (()=>unequipItem(slot)) : null;
+    }
+
+    // Calculate bonuses
+    let atk=0, def=0, str=0;
+    for(const slot of slots){
+        const item = player.equipment[slot];
+        if(item){
+            atk += item.atk || 0;
+            def += item.def || 0;
+            str += item.str || 0;
+        }
+    }
+    document.getElementById('equip-atk').textContent = '+' + atk;
+    document.getElementById('equip-def').textContent = '+' + def;
+    document.getElementById('equip-str').textContent = '+' + str;
+}
+
+function getEquipBonus(type){
+    let total = 0;
+    for(const slot in player.equipment){
+        const item = player.equipment[slot];
+        if(item) total += item[type] || 0;
+    }
+    return total;
+}
 function showTut(title,txt){document.getElementById('tutorial-title').textContent=title;document.getElementById('tutorial-text').textContent=txt;document.getElementById('tutorial-overlay').classList.remove('hidden');}
 function hideTut(){document.getElementById('tutorial-overlay').classList.add('hidden');}
 
 // ===================== INTERACTIONS =====================
 function talkNPC(n){
     const dlgs={
-        guide:{txt:"Greetings, brave knight! Welcome to Tutorial Island. Speak with the tutors to learn valuable skills for your quest!",opts:[{text:"Where should I go?",fn:()=>{hideDlg();chat("Visit the Fisher to the east for supplies!",'npc');}},{text:"Thank you!",fn:hideDlg}]},
+        guide:{txt:"Greetings, brave knight! Welcome to Tutorial Island. Speak with the tutors to learn valuable skills for your quest!",opts:[{text:"Where should I go?",fn:()=>{hideDlg();chat("Visit the Combat Tutor to get weapons!",'npc');}},{text:"Thank you!",fn:hideDlg}]},
+        combat:{txt:"Ready for battle? Take this sword and shield! Click on goblins to attack them. Check your Equipment tab to see your gear!",opts:[{text:"Give me equipment!",fn:()=>{
+            hideDlg();
+            addInv({...EQUIPMENT['bronze_sword']});
+            addInv({...EQUIPMENT['wooden_shield']});
+            addInv({...EQUIPMENT['bronze_helm']});
+            chat("Received: Bronze Sword, Wooden Shield, Bronze Helm!");
+            chat("Click items in inventory to equip them!");
+        }},{text:"Not yet.",fn:hideDlg}]},
         fishing:{txt:"Ahoy! Want to learn fishing? Take this net and click on the bubbling water!",opts:[{text:"Give me a net!",fn:()=>{hideDlg();addInv({id:'net',name:'Fishing Net',icon:'🥅'});chat("Received: Fishing Net!");}},{text:"Later.",fn:hideDlg}]},
         cooking:{txt:"Hungry? I can teach you to cook! Use the fire with raw fish to make a meal.",opts:[{text:"I understand!",fn:hideDlg}]},
         woodcutting:{txt:"Need wood? Take this axe and chop those trees!",opts:[{text:"Thanks!",fn:()=>{hideDlg();addInv({id:'axe',name:'Bronze Axe',icon:'🪓'});chat("Received: Bronze Axe!");}},{text:"Not now.",fn:hideDlg}]}
@@ -982,8 +1118,18 @@ function startGame(){
     document.getElementById('inventory-panel').classList.add('visible');
     document.getElementById('btn-inv').classList.add('active');
 
-    document.getElementById('btn-stats').onclick=()=>{document.getElementById('stats-panel').classList.toggle('visible');document.getElementById('inventory-panel').classList.remove('visible');document.getElementById('btn-stats').classList.toggle('active');document.getElementById('btn-inv').classList.remove('active');};
-    document.getElementById('btn-inv').onclick=()=>{document.getElementById('inventory-panel').classList.toggle('visible');document.getElementById('stats-panel').classList.remove('visible');document.getElementById('btn-inv').classList.toggle('active');document.getElementById('btn-stats').classList.remove('active');};
+    function hideAllPanels(){
+        document.getElementById('stats-panel').classList.remove('visible');
+        document.getElementById('inventory-panel').classList.remove('visible');
+        document.getElementById('equipment-panel').classList.remove('visible');
+        document.getElementById('btn-stats').classList.remove('active');
+        document.getElementById('btn-inv').classList.remove('active');
+        document.getElementById('btn-equip').classList.remove('active');
+    }
+
+    document.getElementById('btn-stats').onclick=()=>{const v=document.getElementById('stats-panel').classList.contains('visible');hideAllPanels();if(!v){document.getElementById('stats-panel').classList.add('visible');document.getElementById('btn-stats').classList.add('active');}};
+    document.getElementById('btn-inv').onclick=()=>{const v=document.getElementById('inventory-panel').classList.contains('visible');hideAllPanels();if(!v){document.getElementById('inventory-panel').classList.add('visible');document.getElementById('btn-inv').classList.add('active');}};
+    document.getElementById('btn-equip').onclick=()=>{const v=document.getElementById('equipment-panel').classList.contains('visible');hideAllPanels();if(!v){document.getElementById('equipment-panel').classList.add('visible');document.getElementById('btn-equip').classList.add('active');updateEquip();}};
     document.getElementById('btn-map').onclick=()=>{const m=document.getElementById('minimap-panel');m.style.display=m.style.display==='none'?'block':'none';};
 
     canvas.onclick=onClick;
