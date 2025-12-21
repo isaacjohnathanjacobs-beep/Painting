@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { db, initializeDatabase } = require('./database');
+const WebSocket = require('ws');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -451,7 +452,82 @@ app.get('/api/jobs/:jobId/tasks', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Open http://localhost:${PORT} in your browser`);
 });
+
+// WebSocket server for multiplayer
+const wss = new WebSocket.Server({ server });
+
+const players = new Map(); // Map of playerId -> player data
+
+wss.on('connection', (ws) => {
+  const playerId = Math.random().toString(36).substring(7);
+  console.log(`Player ${playerId} connected`);
+
+  // Send player their ID
+  ws.send(JSON.stringify({ type: 'init', playerId }));
+
+  // Send existing players to new player
+  const existingPlayers = Array.from(players.values());
+  ws.send(JSON.stringify({ type: 'players', players: existingPlayers }));
+
+  // Add new player
+  players.set(playerId, {
+    id: playerId,
+    x: 400,
+    y: 300,
+    character: null,
+    equipment: {}
+  });
+
+  // Broadcast new player to all others
+  broadcast({ type: 'playerJoined', player: players.get(playerId) }, playerId);
+
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+
+      if (data.type === 'update') {
+        // Update player position and state
+        const player = players.get(playerId);
+        if (player) {
+          player.x = data.x;
+          player.y = data.y;
+          player.character = data.character;
+          player.equipment = data.equipment;
+          player.anim = data.anim;
+          player.dir = data.dir;
+          player.frame = data.frame;
+
+          // Broadcast to all other players
+          broadcast({ type: 'playerUpdate', player }, playerId);
+        }
+      }
+    } catch (err) {
+      console.error('Error parsing message:', err);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log(`Player ${playerId} disconnected`);
+    players.delete(playerId);
+    broadcast({ type: 'playerLeft', playerId });
+  });
+
+  // Store ws on player for sending messages
+  const player = players.get(playerId);
+  if (player) {
+    player.ws = ws;
+  }
+});
+
+function broadcast(message, excludeId = null) {
+  const msg = JSON.stringify(message);
+  players.forEach((player, id) => {
+    if (id !== excludeId && player.ws && player.ws.readyState === WebSocket.OPEN) {
+      player.ws.send(msg);
+    }
+  });
+}

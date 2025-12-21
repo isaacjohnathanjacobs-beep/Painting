@@ -241,6 +241,12 @@ let map=[], objs=[], npcs=[], goblins=[];
 let cam={x:0,y:0,w:0,h:0};
 let canvas,ctx,minimap,miniCtx,lastTime=0;
 
+// Multiplayer
+let ws = null;
+let myPlayerId = null;
+let otherPlayers = new Map(); // Map of playerId -> player data
+let lastUpdateSent = 0;
+
 // ===================== KNIGHT DRAWING =====================
 function drawKnight(c, x, y, scale, dir, anim, frame) {
     c.save();
@@ -975,6 +981,10 @@ function render(){
     for(const n of npcs) entities.push({type:'npc',data:n,y:n.y});
     for(const g of goblins) if(!g.dead) entities.push({type:'goblin',data:g,y:g.tileY});
     entities.push({type:'player',y:player.tileY});
+    // Add other multiplayer players
+    for(const [id, p] of otherPlayers) {
+        entities.push({type:'otherPlayer',data:p,y:Math.floor(p.y/TILE)});
+    }
     entities.sort((a,b)=>a.y-b.y);
 
     for(const e of entities){
@@ -991,6 +1001,23 @@ function render(){
                 // Goblin name
                 ctx.fillStyle='#f55';ctx.font='bold 10px Arial';ctx.textAlign='center';
                 ctx.fillText(g.name,gx+16,gy-24);
+            }
+        }else if(e.type==='otherPlayer'){
+            const op=e.data,opx=op.x-cam.x,opy=op.y-cam.y;
+            if(opx>-64&&opx<cam.w+64&&opy>-64&&opy<cam.h+64){
+                // Temporarily set knight to other player's character for rendering
+                const savedKnight = knight;
+                knight = op.character || { name:'Player', armor:0, cape:0 };
+                // Temporarily set player equipment
+                const savedEquip = player.equipment;
+                player.equipment = op.equipment || {};
+                drawKnight(ctx,opx+16,opy+10,1.1,op.dir||1,op.anim||'idle',op.frame||0);
+                // Restore original
+                knight = savedKnight;
+                player.equipment = savedEquip;
+                // Draw player name in cyan
+                ctx.fillStyle='#5ff';ctx.font='bold 11px Arial';ctx.textAlign='center';
+                ctx.fillText((op.character?.name || 'Player'),opx+16,opy-36);
             }
         }else{
             const px=player.x-cam.x,py=player.y-cam.y;
@@ -1015,6 +1042,7 @@ function render(){
     miniCtx.fillStyle='#fff';miniCtx.beginPath();miniCtx.arc(70,70,4,0,Math.PI*2);miniCtx.fill();
     miniCtx.fillStyle='#fc5';for(const n of npcs){miniCtx.beginPath();miniCtx.arc(n.x*sc+ox,n.y*sc+oy,3,0,Math.PI*2);miniCtx.fill();}
     miniCtx.fillStyle='#f55';for(const g of goblins){if(!g.dead){miniCtx.beginPath();miniCtx.arc(g.tileX*sc+ox,g.tileY*sc+oy,2,0,Math.PI*2);miniCtx.fill();}}
+    miniCtx.fillStyle='#5ff';for(const [id, p] of otherPlayers){miniCtx.beginPath();miniCtx.arc(Math.floor(p.x/TILE)*sc+ox,Math.floor(p.y/TILE)*sc+oy,3,0,Math.PI*2);miniCtx.fill();}
 
     // Render damage numbers
     ctx.font = 'bold 16px Arial';
@@ -1028,7 +1056,84 @@ function render(){
     ctx.globalAlpha = 1;
 }
 
-function loop(t){const dt=t-lastTime;lastTime=t;update(dt);render();requestAnimationFrame(loop);}
+// ===================== MULTIPLAYER =====================
+function initMultiplayer() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    ws = new WebSocket(`${protocol}//${host}`);
+
+    ws.onopen = () => {
+        console.log('Connected to multiplayer server');
+        chat('Connected to multiplayer!', 'system');
+    };
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'init') {
+            myPlayerId = data.playerId;
+            console.log('My player ID:', myPlayerId);
+        } else if (data.type === 'players') {
+            // Receive existing players
+            for (const p of data.players) {
+                if (p.id !== myPlayerId) {
+                    otherPlayers.set(p.id, p);
+                }
+            }
+        } else if (data.type === 'playerJoined') {
+            if (data.player.id !== myPlayerId) {
+                otherPlayers.set(data.player.id, data.player);
+                chat(`Player joined the game!`, 'system');
+            }
+        } else if (data.type === 'playerUpdate') {
+            if (data.player.id !== myPlayerId) {
+                otherPlayers.set(data.player.id, data.player);
+            }
+        } else if (data.type === 'playerLeft') {
+            otherPlayers.delete(data.playerId);
+            chat(`Player left the game!`, 'system');
+        }
+    };
+
+    ws.onclose = () => {
+        console.log('Disconnected from multiplayer server');
+        chat('Disconnected from multiplayer', 'system');
+    };
+
+    ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+    };
+}
+
+function sendPlayerUpdate() {
+    if (ws && ws.readyState === WebSocket.OPEN && myPlayerId) {
+        ws.send(JSON.stringify({
+            type: 'update',
+            x: player.x,
+            y: player.y,
+            character: knight,
+            equipment: player.equipment,
+            anim: player.anim,
+            dir: player.dir,
+            frame: player.frame
+        }));
+    }
+}
+
+function loop(t){
+    const dt=t-lastTime;
+    lastTime=t;
+    update(dt);
+    render();
+
+    // Send position updates every 50ms (20 times per second)
+    if (t - lastUpdateSent > 50) {
+        sendPlayerUpdate();
+        lastUpdateSent = t;
+    }
+
+    requestAnimationFrame(loop);
+}
 
 // ===================== UI =====================
 function chat(m,t='system'){const d=document.createElement('div');d.className='chat-msg '+t;d.textContent=m;document.getElementById('chat-messages').appendChild(d);document.getElementById('chat-messages').scrollTop=99999;}
@@ -1336,6 +1441,9 @@ function startGame(){
     showTut('⚔️ Welcome, '+knight.name+'!','Click anywhere to move your knight. Talk to NPCs with yellow markers to learn skills and receive equipment!');
     chat('Welcome, Sir '+knight.name+'!');
     chat('Click to move. Talk to NPCs!');
+
+    // Initialize multiplayer
+    initMultiplayer();
 
     lastTime=performance.now();
     requestAnimationFrame(loop);
