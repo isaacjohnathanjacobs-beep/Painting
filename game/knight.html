@@ -141,14 +141,12 @@ let canvas,ctx,minimap,miniCtx,lastTime=0;
 function drawKnight(c, x, y, scale, dir, anim, frame) {
     c.save();
     c.translate(x, y);
-    c.scale(scale * dir, scale);
+    c.scale(scale, scale); // No horizontal flip - knight always faces same way
 
     const armorCol = ARMOR_COLORS[knight.armor];
     const capeCol = CAPE_COLORS[knight.cape];
     const metalLight = '#a8a8a8';
     const metalDark = '#505050';
-    const skin = '#e8c4a0';
-    const eyeCol = '#222';
 
     // Animation offsets
     let legOff = 0, armOff = 0, bodyOff = 0, swordAng = 0;
@@ -171,13 +169,14 @@ function drawKnight(c, x, y, scale, dir, anim, frame) {
     c.ellipse(0, 28, 14, 5, 0, 0, Math.PI*2);
     c.fill();
 
-    // Cape (behind)
+    // Cape (behind) - flows based on direction
     c.fillStyle = capeCol;
     c.beginPath();
+    const capeFlow = dir < 0 ? 6 : -6; // Cape flows opposite to movement
     c.moveTo(-6, -8 + bodyOff);
-    c.quadraticCurveTo(-10, 10, -8 + Math.sin(f*0.3)*2, 24);
-    c.lineTo(8 + Math.sin(f*0.3+1)*2, 24);
-    c.quadraticCurveTo(10, 10, 6, -8 + bodyOff);
+    c.quadraticCurveTo(-8 + capeFlow, 10, -6 + capeFlow + Math.sin(f*0.3)*3, 26);
+    c.lineTo(6 + capeFlow + Math.sin(f*0.3+1)*3, 26);
+    c.quadraticCurveTo(8 + capeFlow, 10, 6, -8 + bodyOff);
     c.fill();
 
     // Back leg
@@ -298,28 +297,59 @@ function drawKnight(c, x, y, scale, dir, anim, frame) {
     c.fillRect(-4, -12 + bodyOff, 2, 1);
     c.fillRect(2, -12 + bodyOff, 2, 1);
 
-    // Helmet crest
-    c.fillStyle = capeCol;
+    // Helmet plume - feathers flowing backward
+    const plumeWave = Math.sin(f * 0.25) * 2;
+    const plumeDir = dir < 0 ? 1 : -1; // Plume flows opposite to movement
+
+    // Plume base (metal holder)
+    c.fillStyle = '#c9a227';
     c.beginPath();
-    c.moveTo(-2, -22 + bodyOff);
-    c.lineTo(0, -26 + bodyOff + Math.sin(f*0.2)*1);
-    c.lineTo(2, -22 + bodyOff);
-    c.quadraticCurveTo(4, -18, 6, -10 + bodyOff);
-    c.lineTo(-6, -10 + bodyOff);
-    c.quadraticCurveTo(-4, -18, -2, -22 + bodyOff);
+    c.arc(0, -20 + bodyOff, 3, 0, Math.PI * 2);
     c.fill();
 
-    // Plume feathers
-    for(let i = 0; i < 5; i++) {
-        c.fillStyle = capeCol;
+    // Draw feathers - multiple layers for fullness
+    for(let layer = 0; layer < 3; layer++) {
+        for(let i = 0; i < 6; i++) {
+            const featherLen = 18 - layer * 3 - i * 1.5;
+            const spread = (i - 2.5) * 4 + layer * 2;
+            const wave = Math.sin(f * 0.2 + i * 0.4 + layer) * (2 + i * 0.5);
+
+            // Feather stem curves back
+            c.strokeStyle = layer === 0 ? capeCol : (layer === 1 ? lightenColor(capeCol, 20) : lightenColor(capeCol, 40));
+            c.lineWidth = 3 - layer * 0.5;
+            c.lineCap = 'round';
+            c.beginPath();
+            c.moveTo(0, -20 + bodyOff);
+            c.quadraticCurveTo(
+                plumeDir * (8 + layer * 2) + wave,
+                -24 + spread + bodyOff,
+                plumeDir * (featherLen + wave),
+                -18 + spread + bodyOff + plumeWave
+            );
+            c.stroke();
+        }
+    }
+
+    // Feather tips (fluffy ends)
+    c.fillStyle = capeCol;
+    for(let i = 0; i < 8; i++) {
+        const tipX = plumeDir * (14 + Math.sin(f * 0.2 + i) * 3);
+        const tipY = -22 + (i - 4) * 3 + bodyOff + Math.sin(f * 0.25 + i * 0.5) * 2;
         c.beginPath();
-        const px = -3 + i * 1.5;
-        const wave = Math.sin(f * 0.2 + i * 0.5) * 2;
-        c.ellipse(px, -24 + bodyOff + wave, 2, 6, 0.1 * i - 0.2, 0, Math.PI * 2);
+        c.ellipse(tipX, tipY, 4, 2, plumeDir * 0.3, 0, Math.PI * 2);
         c.fill();
     }
 
     c.restore();
+}
+
+// Helper to lighten a color
+function lightenColor(col, amt) {
+    const num = parseInt(col.slice(1), 16);
+    const r = Math.min(255, (num >> 16) + amt);
+    const g = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+    const b = Math.min(255, (num & 0x0000FF) + amt);
+    return '#' + (0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1);
 }
 
 function drawNPC(c, npc, sx, sy) {
