@@ -245,12 +245,22 @@ let canvas,ctx,minimap,miniCtx,lastTime=0;
 function drawKnight(c, x, y, scale, dir, anim, frame) {
     c.save();
     c.translate(x, y);
-    c.scale(scale, scale); // No horizontal flip - knight always faces same way
+    c.scale(scale, scale);
 
-    const armorCol = ARMOR_COLORS[knight.armor];
+    // Check equipped items
+    const hasHelm = player.equipment?.head;
+    const hasBody = player.equipment?.body;
+    const hasBoots = player.equipment?.boots;
+    const hasWeapon = player.equipment?.weapon;
+    const hasShield = player.equipment?.shield;
+
+    // Base clothing color (from character creator)
+    const clothingCol = ARMOR_COLORS[knight.armor];
     const capeCol = CAPE_COLORS[knight.cape];
     const metalLight = '#a8a8a8';
     const metalDark = '#505050';
+    const leatherCol = '#8b6f47';  // Leather brown
+    const bronzeCol = '#cd7f32';   // Bronze color
 
     // Animation offsets
     let legOff = 0, armOff = 0, bodyOff = 0, swordAng = 0;
@@ -273,175 +283,214 @@ function drawKnight(c, x, y, scale, dir, anim, frame) {
     c.ellipse(0, 28, 14, 5, 0, 0, Math.PI*2);
     c.fill();
 
-    // Cape (behind) - flows based on direction
+    // Cape (behind) - always visible
     c.fillStyle = capeCol;
     c.beginPath();
-    const capeFlow = dir < 0 ? 6 : -6; // Cape flows opposite to movement
+    const capeFlow = dir < 0 ? 6 : -6;
     c.moveTo(-6, -8 + bodyOff);
     c.quadraticCurveTo(-8 + capeFlow, 10, -6 + capeFlow + Math.sin(f*0.3)*3, 26);
     c.lineTo(6 + capeFlow + Math.sin(f*0.3+1)*3, 26);
     c.quadraticCurveTo(8 + capeFlow, 10, 6, -8 + bodyOff);
     c.fill();
 
-    // Back leg
-    c.fillStyle = metalDark;
+    // Back leg - basic pants
+    c.fillStyle = clothingCol;
     c.fillRect(-5, 12 + bodyOff - legOff, 5, 14);
-    c.fillStyle = armorCol;
-    c.fillRect(-5, 12 + bodyOff - legOff, 5, 8);
 
-    // Boot back
-    c.fillStyle = '#3a2a1a';
-    c.fillRect(-6, 23 + bodyOff - legOff, 7, 5);
+    // Boot back - only if equipped
+    if (hasBoots) {
+        c.fillStyle = leatherCol;
+        c.fillRect(-6, 23 + bodyOff - legOff, 7, 5);
+    } else {
+        c.fillStyle = '#5a4020';  // Basic shoes
+        c.fillRect(-5, 24 + bodyOff - legOff, 5, 4);
+    }
 
-    // Body armor
-    c.fillStyle = armorCol;
-    c.fillRect(-8, -6 + bodyOff, 16, 18);
-
-    // Chest plate highlight
-    c.fillStyle = metalLight;
-    c.fillRect(-6, -4 + bodyOff, 4, 8);
+    // Body - basic tunic or leather armor
+    if (hasBody) {
+        // Leather body armor
+        c.fillStyle = leatherCol;
+        c.fillRect(-8, -6 + bodyOff, 16, 18);
+        // Leather texture
+        c.fillStyle = '#6a5537';
+        c.fillRect(-6, -4 + bodyOff, 3, 3);
+        c.fillRect(3, -1 + bodyOff, 3, 3);
+        c.fillRect(-6, 3 + bodyOff, 3, 3);
+    } else {
+        // Basic tunic
+        c.fillStyle = clothingCol;
+        c.fillRect(-8, -6 + bodyOff, 16, 18);
+    }
 
     // Belt
     c.fillStyle = '#5a4020';
     c.fillRect(-8, 8 + bodyOff, 16, 4);
-    c.fillStyle = '#c9a227';
+    c.fillStyle = '#8b7355';
     c.fillRect(-2, 8 + bodyOff, 4, 4);
 
-    // Front leg
-    c.fillStyle = metalDark;
+    // Front leg - basic pants
+    c.fillStyle = clothingCol;
     c.fillRect(0, 12 + bodyOff + legOff, 5, 14);
-    c.fillStyle = armorCol;
-    c.fillRect(0, 12 + bodyOff + legOff, 5, 8);
 
-    // Boot front
-    c.fillStyle = '#3a2a1a';
-    c.fillRect(-1, 23 + bodyOff + legOff, 7, 5);
+    // Boot front - only if equipped
+    if (hasBoots) {
+        c.fillStyle = leatherCol;
+        c.fillRect(-1, 23 + bodyOff + legOff, 7, 5);
+    } else {
+        c.fillStyle = '#5a4020';  // Basic shoes
+        c.fillRect(0, 24 + bodyOff + legOff, 5, 4);
+    }
 
     // Shield arm (left side from knight's view)
     c.save();
     c.translate(-10, 0 + bodyOff);
     c.rotate(-0.2 + armOff * 0.02);
 
-    // Arm
-    c.fillStyle = armorCol;
+    // Arm - basic sleeve or armored
+    c.fillStyle = hasBody ? leatherCol : clothingCol;
     c.fillRect(-3, -2, 6, 12);
 
-    // Shield
-    c.fillStyle = '#8b4513';
-    c.beginPath();
-    c.moveTo(-8, 2);
-    c.lineTo(-8, 14);
-    c.lineTo(0, 18);
-    c.lineTo(8, 14);
-    c.lineTo(8, 2);
-    c.closePath();
-    c.fill();
-    c.fillStyle = armorCol;
-    c.beginPath();
-    c.moveTo(-5, 4);
-    c.lineTo(-5, 12);
-    c.lineTo(0, 15);
-    c.lineTo(5, 12);
-    c.lineTo(5, 4);
-    c.closePath();
-    c.fill();
-    c.fillStyle = '#c9a227';
-    c.fillRect(-2, 6, 4, 6);
+    // Shield - only if equipped
+    if (hasShield) {
+        c.fillStyle = '#8b4513';
+        c.beginPath();
+        c.moveTo(-8, 2);
+        c.lineTo(-8, 14);
+        c.lineTo(0, 18);
+        c.lineTo(8, 14);
+        c.lineTo(8, 2);
+        c.closePath();
+        c.fill();
+        c.fillStyle = '#5a4020';
+        c.beginPath();
+        c.moveTo(-5, 4);
+        c.lineTo(-5, 12);
+        c.lineTo(0, 15);
+        c.lineTo(5, 12);
+        c.lineTo(5, 4);
+        c.closePath();
+        c.fill();
+        c.fillStyle = '#8b6f47';
+        c.fillRect(-2, 6, 4, 6);
+    }
     c.restore();
 
-    // Sword arm (right side)
+    // Weapon arm (right side)
     c.save();
     c.translate(10, 2 + bodyOff);
     c.rotate(swordAng - armOff * 0.03);
 
-    // Arm
-    c.fillStyle = armorCol;
+    // Arm - basic sleeve or armored
+    c.fillStyle = hasBody ? leatherCol : clothingCol;
     c.fillRect(-3, -2, 6, 12);
 
-    // Gauntlet
-    c.fillStyle = metalDark;
+    // Hand
+    c.fillStyle = '#e8c4a0';
     c.fillRect(-2, 8, 4, 4);
 
-    // Sword
-    c.fillStyle = '#c9a227'; // pommel
-    c.fillRect(-2, 11, 4, 3);
-    c.fillStyle = '#5a4020'; // grip
-    c.fillRect(-1, 14, 2, 6);
-    c.fillStyle = '#c9a227'; // guard
-    c.fillRect(-4, 19, 8, 2);
-    c.fillStyle = metalLight; // blade
-    c.beginPath();
-    c.moveTo(-2, 21);
-    c.lineTo(-2, 38);
-    c.lineTo(0, 42);
-    c.lineTo(2, 38);
-    c.lineTo(2, 21);
-    c.closePath();
-    c.fill();
-    c.fillStyle = '#fff';
-    c.fillRect(-1, 22, 1, 14);
+    // Weapon - only if equipped
+    if (hasWeapon) {
+        // Bronze sword
+        c.fillStyle = bronzeCol; // pommel
+        c.fillRect(-2, 11, 4, 3);
+        c.fillStyle = '#5a4020'; // grip
+        c.fillRect(-1, 14, 2, 6);
+        c.fillStyle = bronzeCol; // guard
+        c.fillRect(-4, 19, 8, 2);
+        c.fillStyle = metalLight; // blade
+        c.beginPath();
+        c.moveTo(-2, 21);
+        c.lineTo(-2, 38);
+        c.lineTo(0, 42);
+        c.lineTo(2, 38);
+        c.lineTo(2, 21);
+        c.closePath();
+        c.fill();
+        c.fillStyle = '#fff';
+        c.fillRect(-1, 22, 1, 14);
+    }
     c.restore();
 
-    // Helmet
-    c.fillStyle = armorCol;
-    c.beginPath();
-    c.arc(0, -12 + bodyOff, 10, 0, Math.PI * 2);
-    c.fill();
-
-    // Visor
-    c.fillStyle = metalDark;
-    c.fillRect(-8, -15 + bodyOff, 16, 8);
-
-    // Eye slit
-    c.fillStyle = '#111';
-    c.fillRect(-6, -13 + bodyOff, 12, 3);
-
-    // Eye glow (menacing)
-    c.fillStyle = '#ffa500';
-    c.fillRect(-4, -12 + bodyOff, 2, 1);
-    c.fillRect(2, -12 + bodyOff, 2, 1);
-
-    // Helmet plume - feathers flowing backward
-    const plumeWave = Math.sin(f * 0.25) * 2;
-    const plumeDir = dir < 0 ? 1 : -1; // Plume flows opposite to movement
-
-    // Plume base (metal holder)
-    c.fillStyle = '#c9a227';
-    c.beginPath();
-    c.arc(0, -20 + bodyOff, 3, 0, Math.PI * 2);
-    c.fill();
-
-    // Draw feathers - multiple layers for fullness
-    for(let layer = 0; layer < 3; layer++) {
-        for(let i = 0; i < 6; i++) {
-            const featherLen = 18 - layer * 3 - i * 1.5;
-            const spread = (i - 2.5) * 4 + layer * 2;
-            const wave = Math.sin(f * 0.2 + i * 0.4 + layer) * (2 + i * 0.5);
-
-            // Feather stem curves back
-            c.strokeStyle = layer === 0 ? capeCol : (layer === 1 ? lightenColor(capeCol, 20) : lightenColor(capeCol, 40));
-            c.lineWidth = 3 - layer * 0.5;
-            c.lineCap = 'round';
-            c.beginPath();
-            c.moveTo(0, -20 + bodyOff);
-            c.quadraticCurveTo(
-                plumeDir * (8 + layer * 2) + wave,
-                -24 + spread + bodyOff,
-                plumeDir * (featherLen + wave),
-                -18 + spread + bodyOff + plumeWave
-            );
-            c.stroke();
-        }
-    }
-
-    // Feather tips (fluffy ends)
-    c.fillStyle = capeCol;
-    for(let i = 0; i < 8; i++) {
-        const tipX = plumeDir * (14 + Math.sin(f * 0.2 + i) * 3);
-        const tipY = -22 + (i - 4) * 3 + bodyOff + Math.sin(f * 0.25 + i * 0.5) * 2;
+    // Head - helmet or basic hair/face
+    if (hasHelm) {
+        // Bronze helmet
+        c.fillStyle = armorCol;
         c.beginPath();
-        c.ellipse(tipX, tipY, 4, 2, plumeDir * 0.3, 0, Math.PI * 2);
+        c.arc(0, -12 + bodyOff, 10, 0, Math.PI * 2);
         c.fill();
+
+        // Visor
+        c.fillStyle = metalDark;
+        c.fillRect(-8, -15 + bodyOff, 16, 8);
+
+        // Eye slit
+        c.fillStyle = '#111';
+        c.fillRect(-6, -13 + bodyOff, 12, 3);
+
+        // Eye glow (menacing)
+        c.fillStyle = '#ffa500';
+        c.fillRect(-4, -12 + bodyOff, 2, 1);
+        c.fillRect(2, -12 + bodyOff, 2, 1);
+
+        // Helmet plume - feathers flowing backward
+        const plumeWave = Math.sin(f * 0.25) * 2;
+        const plumeDir = dir < 0 ? 1 : -1; // Plume flows opposite to movement
+
+        // Plume base (metal holder)
+        c.fillStyle = '#c9a227';
+        c.beginPath();
+        c.arc(0, -20 + bodyOff, 3, 0, Math.PI * 2);
+        c.fill();
+
+        // Draw feathers - multiple layers for fullness
+        for(let layer = 0; layer < 3; layer++) {
+            for(let i = 0; i < 6; i++) {
+                const featherLen = 18 - layer * 3 - i * 1.5;
+                const spread = (i - 2.5) * 4 + layer * 2;
+                const wave = Math.sin(f * 0.2 + i * 0.4 + layer) * (2 + i * 0.5);
+
+                // Feather stem curves back
+                c.strokeStyle = layer === 0 ? capeCol : (layer === 1 ? lightenColor(capeCol, 20) : lightenColor(capeCol, 40));
+                c.lineWidth = 3 - layer * 0.5;
+                c.lineCap = 'round';
+                c.beginPath();
+                c.moveTo(0, -20 + bodyOff);
+                c.quadraticCurveTo(
+                    plumeDir * (8 + layer * 2) + wave,
+                    -24 + spread + bodyOff,
+                    plumeDir * (featherLen + wave),
+                    -18 + spread + bodyOff + plumeWave
+                );
+                c.stroke();
+            }
+        }
+
+        // Feather tips (fluffy ends)
+        c.fillStyle = capeCol;
+        for(let i = 0; i < 8; i++) {
+            const tipX = plumeDir * (14 + Math.sin(f * 0.2 + i) * 3);
+            const tipY = -22 + (i - 4) * 3 + bodyOff + Math.sin(f * 0.25 + i * 0.5) * 2;
+            c.beginPath();
+            c.ellipse(tipX, tipY, 4, 2, plumeDir * 0.3, 0, Math.PI * 2);
+            c.fill();
+        }
+    } else {
+        // Basic head without helmet
+        // Hair (from character creator)
+        const hairCol = player.character?.hairColor || '#8b4513';
+        c.fillStyle = hairCol;
+        c.fillRect(-8, -18 + bodyOff, 16, 8);
+
+        // Face
+        c.fillStyle = skinCol;
+        c.beginPath();
+        c.arc(0, -12 + bodyOff, 8, 0, Math.PI * 2);
+        c.fill();
+
+        // Eyes
+        c.fillStyle = '#111';
+        c.fillRect(-4, -13 + bodyOff, 2, 2);
+        c.fillRect(2, -13 + bodyOff, 2, 2);
     }
 
     c.restore();
