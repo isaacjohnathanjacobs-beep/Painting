@@ -1097,13 +1097,15 @@ function hideTut(){document.getElementById('tutorial-overlay').classList.add('hi
 // ===================== INTERACTIONS =====================
 function talkNPC(n){
     const dlgs={
-        guide:{txt:"Greetings, brave knight! Welcome to Tutorial Island. Speak with the tutors to learn valuable skills for your quest!",opts:[{text:"Where should I go?",fn:()=>{hideDlg();chat("Visit the Combat Tutor to get weapons!",'npc');}},{text:"Thank you!",fn:hideDlg}]},
-        combat:{txt:"Ready for battle? Take this sword and shield! Click on goblins to attack them. Check your Equipment tab to see your gear!",opts:[{text:"Give me equipment!",fn:()=>{
+        guide:{txt:"Greetings, brave knight! Welcome to Tutorial Island. Speak with the tutors to learn valuable skills for your quest!",opts:[{text:"Where should I go?",fn:()=>{hideDlg();chat("Visit the Combat Tutor to get your starting armor and weapons!",'npc');}},{text:"Thank you!",fn:hideDlg}]},
+        combat:{txt:"Ready for battle? Take this complete armor set! I have weapons, armor, and gear to equip you for your quest. Check your Equipment tab to see your gear!",opts:[{text:"Give me equipment!",fn:()=>{
             hideDlg();
             addInv({...EQUIPMENT['bronze_sword']});
             addInv({...EQUIPMENT['wooden_shield']});
             addInv({...EQUIPMENT['bronze_helm']});
-            chat("Received: Bronze Sword, Wooden Shield, Bronze Helm!");
+            addInv({...EQUIPMENT['leather_body']});
+            addInv({...EQUIPMENT['leather_boots']});
+            chat("Received: Bronze Sword, Wooden Shield, Bronze Helm, Leather Body, Leather Boots!");
             chat("Click items in inventory to equip them!");
         }},{text:"Not yet.",fn:hideDlg}]},
         fishing:{txt:"Ahoy! Want to learn fishing? Take this net and click on the bubbling water!",opts:[{text:"Give me a net!",fn:()=>{hideDlg();addInv({id:'net',name:'Fishing Net',icon:'🥅'});chat("Received: Fishing Net!");}},{text:"Later.",fn:hideDlg}]},
