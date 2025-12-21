@@ -1,0 +1,864 @@
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #1a1a2e;
+    color: #eee;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+}
+
+.screen {
+    display: none;
+    width: 100%;
+    height: 100%;
+}
+
+.screen.active {
+    display: flex;
+}
+
+/* ============================================
+   CHARACTER CREATOR STYLES
+   ============================================ */
+
+#character-creator {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    justify-content: center;
+    align-items: center;
+}
+
+.creator-container {
+    background: rgba(0, 0, 0, 0.6);
+    border: 2px solid #4a90d9;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 700px;
+    width: 90%;
+    box-shadow: 0 0 30px rgba(74, 144, 217, 0.3);
+}
+
+.creator-container h1 {
+    text-align: center;
+    color: #4a90d9;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    font-size: 2em;
+}
+
+.creator-content {
+    display: flex;
+    gap: 30px;
+}
+
+.preview-section {
+    flex: 0 0 150px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#character-preview {
+    background: linear-gradient(180deg, #87CEEB 0%, #90EE90 100%);
+    border: 3px solid #333;
+    border-radius: 8px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+.preview-label {
+    margin-top: 10px;
+    color: #888;
+    font-size: 0.9em;
+}
+
+.options-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.option-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.option-group label {
+    color: #4a90d9;
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
+.option-group input[type="text"] {
+    padding: 10px 15px;
+    border: 2px solid #333;
+    border-radius: 6px;
+    background: #1a1a2e;
+    color: #fff;
+    font-size: 1em;
+    transition: border-color 0.3s;
+}
+
+.option-group input[type="text"]:focus {
+    outline: none;
+    border-color: #4a90d9;
+}
+
+.button-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.option-btn {
+    padding: 8px 20px;
+    border: 2px solid #333;
+    border-radius: 6px;
+    background: #2d2d4a;
+    color: #ccc;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.option-btn:hover {
+    background: #3d3d5a;
+    border-color: #4a90d9;
+}
+
+.option-btn.active {
+    background: #4a90d9;
+    border-color: #6ab0f9;
+    color: #fff;
+}
+
+.arrow-btn {
+    width: 40px;
+    height: 40px;
+    border: 2px solid #333;
+    border-radius: 6px;
+    background: #2d2d4a;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 1.2em;
+    transition: all 0.3s;
+}
+
+.arrow-btn:hover {
+    background: #4a90d9;
+    border-color: #6ab0f9;
+}
+
+#hair-name {
+    min-width: 100px;
+    text-align: center;
+    color: #fff;
+}
+
+.color-options {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.color-btn {
+    width: 36px;
+    height: 36px;
+    border: 3px solid #333;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.color-btn:hover {
+    transform: scale(1.1);
+    border-color: #fff;
+}
+
+.color-btn.active {
+    border-color: #4a90d9;
+    box-shadow: 0 0 10px rgba(74, 144, 217, 0.5);
+}
+
+.start-btn {
+    width: 100%;
+    margin-top: 20px;
+    padding: 15px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #4a90d9 0%, #357abd 100%);
+    color: #fff;
+    font-size: 1.2em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.start-btn:hover {
+    background: linear-gradient(135deg, #5aa0e9 0%, #4589cd 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(74, 144, 217, 0.4);
+}
+
+/* ============================================
+   GAME SCREEN STYLES
+   ============================================ */
+
+#game-screen {
+    position: relative;
+    background: #000;
+}
+
+#game-canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+#game-ui {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+#game-ui > * {
+    pointer-events: auto;
+}
+
+/* Top bar */
+#top-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 100%);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+}
+
+#player-info {
+    color: #fff;
+    font-weight: bold;
+}
+
+/* UI Panels */
+.ui-panel {
+    position: absolute;
+    background: rgba(30, 30, 50, 0.95);
+    border: 2px solid #4a90d9;
+    border-radius: 8px;
+    padding: 15px;
+    display: none;
+}
+
+.ui-panel.visible {
+    display: block;
+}
+
+.ui-panel h3 {
+    color: #4a90d9;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #333;
+    text-align: center;
+}
+
+/* Stats panel */
+#stats-panel {
+    top: 50px;
+    right: 10px;
+    width: 180px;
+}
+
+.stat-row {
+    display: flex;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid #222;
+}
+
+.stat-icon {
+    width: 25px;
+    font-size: 1em;
+}
+
+.stat-name {
+    flex: 1;
+    color: #aaa;
+    font-size: 0.85em;
+}
+
+.stat-value {
+    color: #4a90d9;
+    font-weight: bold;
+}
+
+/* Inventory panel */
+#inventory-panel {
+    top: 50px;
+    right: 10px;
+    width: 210px;
+}
+
+#inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+}
+
+.inventory-slot {
+    width: 42px;
+    height: 42px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid #333;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5em;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.inventory-slot:hover {
+    border-color: #4a90d9;
+    background: rgba(74, 144, 217, 0.2);
+}
+
+.inventory-slot.filled {
+    background: rgba(50, 50, 70, 0.8);
+}
+
+/* Minimap */
+#minimap-container {
+    position: absolute;
+    top: 50px;
+    right: 10px;
+    border: 3px solid #4a90d9;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+#minimap {
+    background: #1a3a1a;
+    border-radius: 50%;
+}
+
+/* Chat box */
+#chat-box {
+    position: absolute;
+    bottom: 60px;
+    left: 10px;
+    width: 400px;
+    height: 150px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 2px solid #333;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+#chat-messages {
+    height: 100%;
+    padding: 10px;
+    overflow-y: auto;
+    font-size: 0.9em;
+}
+
+.chat-message {
+    margin-bottom: 5px;
+    line-height: 1.4;
+}
+
+.chat-message.system {
+    color: #4a90d9;
+}
+
+.chat-message.npc {
+    color: #ffd700;
+}
+
+.chat-message.player {
+    color: #90EE90;
+}
+
+/* Dialogue box */
+#dialogue-box {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    background: rgba(20, 20, 40, 0.98);
+    display: flex;
+    padding: 15px;
+    border-top: 2px solid #4a90d9;
+}
+
+#dialogue-box.hidden {
+    display: none;
+}
+
+#npc-portrait {
+    width: 80px;
+    height: 80px;
+    background: #2d2d4a;
+    border: 2px solid #4a90d9;
+    border-radius: 8px;
+    margin-right: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2em;
+}
+
+#dialogue-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+#npc-name {
+    color: #ffd700;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+#dialogue-text {
+    flex: 1;
+    color: #fff;
+    line-height: 1.5;
+}
+
+#dialogue-options {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 10px;
+}
+
+.dialogue-option {
+    padding: 8px 15px;
+    background: #2d2d4a;
+    border: 1px solid #4a90d9;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+}
+
+.dialogue-option:hover {
+    background: #4a90d9;
+}
+
+/* Action bar */
+#action-bar {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 5px;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 8px;
+    border-radius: 8px;
+    border: 2px solid #333;
+}
+
+.action-btn {
+    width: 45px;
+    height: 45px;
+    border: 2px solid #333;
+    border-radius: 6px;
+    background: #2d2d4a;
+    color: #fff;
+    font-size: 1.3em;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.action-btn:hover {
+    background: #3d3d5a;
+    border-color: #4a90d9;
+}
+
+.action-btn.active {
+    background: #4a90d9;
+    border-color: #6ab0f9;
+}
+
+/* Tutorial overlay */
+#tutorial-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+#tutorial-overlay.hidden {
+    display: none;
+}
+
+#tutorial-box {
+    background: rgba(30, 30, 50, 0.98);
+    border: 3px solid #ffd700;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 500px;
+    text-align: center;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+}
+
+#tutorial-title {
+    color: #ffd700;
+    font-size: 1.5em;
+    margin-bottom: 15px;
+}
+
+#tutorial-text {
+    color: #fff;
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+#tutorial-continue {
+    padding: 12px 30px;
+    background: linear-gradient(135deg, #ffd700 0%, #daa520 100%);
+    border: none;
+    border-radius: 6px;
+    color: #1a1a2e;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+#tutorial-continue:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 215, 0, 0.4);
+}
+
+/* Context menu */
+#context-menu {
+    position: absolute;
+    background: rgba(20, 20, 40, 0.98);
+    border: 2px solid #4a90d9;
+    border-radius: 6px;
+    min-width: 150px;
+    z-index: 200;
+    overflow: hidden;
+}
+
+#context-menu.hidden {
+    display: none;
+}
+
+#context-options {
+    list-style: none;
+}
+
+#context-options li {
+    padding: 10px 15px;
+    cursor: pointer;
+    transition: background 0.2s;
+    border-bottom: 1px solid #333;
+}
+
+#context-options li:last-child {
+    border-bottom: none;
+}
+
+#context-options li:hover {
+    background: #4a90d9;
+}
+
+#context-options li .option-action {
+    color: #ffd700;
+    font-weight: bold;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1a1a2e;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #4a90d9;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #5aa0e9;
+}
+
+/* Hidden class */
+.hidden {
+    display: none !important;
+}
+
+/* ============================================
+   MOBILE RESPONSIVE STYLES
+   ============================================ */
+
+/* Mobile - Portrait (phones) */
+@media (max-width: 768px) {
+    /* Character Creator - Stack vertically on mobile */
+    .creator-container {
+        padding: 20px;
+        width: 95%;
+        max-width: none;
+    }
+
+    .creator-container h1 {
+        font-size: 1.5em;
+    }
+
+    .creator-content {
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .preview-section {
+        flex: none;
+    }
+
+    .options-section {
+        width: 100%;
+    }
+
+    /* Game UI - Make panels overlay instead of sidebar */
+    #stats-panel,
+    #inventory-panel {
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 90%;
+        max-width: 300px;
+        z-index: 50;
+    }
+
+    /* Chat box - Smaller and bottom positioned */
+    #chat-box {
+        width: calc(100% - 20px);
+        left: 10px;
+        bottom: 70px;
+        height: 120px;
+        font-size: 0.8em;
+    }
+
+    /* Minimap - Smaller on mobile */
+    #minimap-container {
+        width: 100px;
+        height: 100px;
+        top: 50px;
+        right: 5px;
+    }
+
+    #minimap {
+        width: 100px;
+        height: 100px;
+    }
+
+    /* Action bar - Larger touch targets */
+    #action-bar {
+        bottom: 5px;
+        gap: 8px;
+        padding: 10px;
+    }
+
+    .action-btn {
+        width: 55px;
+        height: 55px;
+        font-size: 1.5em;
+    }
+
+    /* Top bar */
+    #top-bar {
+        padding: 0 10px;
+        font-size: 0.9em;
+    }
+
+    /* Dialogue box - Full screen on mobile */
+    #dialogue-box {
+        padding: 10px;
+    }
+
+    #npc-portrait {
+        width: 60px;
+        height: 60px;
+        font-size: 1.5em;
+    }
+
+    #dialogue-text {
+        font-size: 0.9em;
+    }
+
+    .dialogue-option {
+        padding: 12px;
+        font-size: 1em;
+    }
+
+    /* Tutorial overlay */
+    #tutorial-box {
+        width: 90%;
+        padding: 20px;
+    }
+
+    #tutorial-title {
+        font-size: 1.2em;
+    }
+
+    /* Context menu */
+    #context-menu {
+        min-width: 120px;
+        font-size: 0.9em;
+    }
+
+    /* Make color buttons larger for touch */
+    .color-btn {
+        width: 44px;
+        height: 44px;
+    }
+
+    /* Make arrow buttons larger */
+    .arrow-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 1.4em;
+    }
+
+    /* Inventory slots - Larger for touch */
+    .inventory-slot {
+        width: 48px;
+        height: 48px;
+    }
+}
+
+/* Mobile - Landscape */
+@media (max-width: 900px) and (orientation: landscape) {
+    #chat-box {
+        width: 300px;
+        height: 100px;
+        bottom: 70px;
+    }
+
+    #stats-panel,
+    #inventory-panel {
+        top: 60px;
+        transform: none;
+        left: auto;
+    }
+
+    #minimap-container {
+        top: 45px;
+    }
+}
+
+/* Very small phones */
+@media (max-width: 480px) {
+    .creator-container h1 {
+        font-size: 1.3em;
+        margin-bottom: 15px;
+    }
+
+    .option-group label {
+        font-size: 0.85em;
+    }
+
+    .start-btn {
+        padding: 12px;
+        font-size: 1em;
+    }
+
+    #action-bar {
+        gap: 5px;
+        padding: 8px;
+    }
+
+    .action-btn {
+        width: 50px;
+        height: 50px;
+    }
+
+    #minimap-container {
+        width: 80px;
+        height: 80px;
+    }
+
+    #minimap {
+        width: 80px;
+        height: 80px;
+    }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+    /* Remove hover effects on touch devices */
+    .option-btn:hover,
+    .arrow-btn:hover,
+    .color-btn:hover,
+    .action-btn:hover,
+    .inventory-slot:hover,
+    .dialogue-option:hover,
+    .start-btn:hover,
+    #context-options li:hover {
+        transform: none;
+        background: inherit;
+        border-color: inherit;
+    }
+
+    /* Add active states for touch feedback */
+    .option-btn:active {
+        background: #3d3d5a;
+        border-color: #4a90d9;
+    }
+
+    .action-btn:active {
+        background: #3d3d5a;
+        border-color: #4a90d9;
+    }
+
+    .dialogue-option:active {
+        background: #4a90d9;
+    }
+
+    /* Prevent text selection on game elements */
+    #game-canvas,
+    .action-btn,
+    .ui-panel,
+    #dialogue-box {
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Enable smooth scrolling for iOS */
+    #chat-messages {
+        -webkit-overflow-scrolling: touch;
+    }
+}
